@@ -70,12 +70,13 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 ### Streamlit App Structure
 
 **Main Page** (`main.py`): 
-- Technical Analysis Summary Table (single page design)
+- **AG-Grid Modern Table** with Balham light theme
+- **Smart Refresh System**: Manual data loading with status indicators
+- **Historical Rating System**: Shows 3-day rating history (Current, -1d, -2d)
 - Date picker with intelligent trading day default
-- Comprehensive indicator display with TradingView-compatible values
+- **Compact Display**: Optimized columns for essential metrics only
 - Real-time progress tracking during analysis
-- Color-coded signal visualization
-- All stocks/indices analysis (no filtering)
+- **Conditional Formatting**: Color gradients for Close vs MA percentages
 
 **Charts Page** (`pages/1_📈_Charts.py`):
 - Reserved for future charting functionality
@@ -83,8 +84,9 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 
 **Session State Management**:
 - Caches analysis results in `st.session_state.analysis_results`
-- 5-minute TTL caching on data fetching
-- Auto-refresh on parameter changes
+- **Smart Refresh Logic**: Only loads data when explicitly requested
+- **First Load Flag**: Prevents unnecessary data reloading on UI changes
+- Date change detection with user warnings
 
 ### Stock List Configuration
 
@@ -106,16 +108,23 @@ Index,^VIX,
 
 ### Display & Visualization
 
-**Main Table Structure**:
-- **Basic Info**: Sector, Ticker, Price, % Change, Osc Buy, Osc Sell, MA Buy, MA Sell
-- **Signal Columns**: All oscillator and MA signals with color coding
-  - 🟢 Buy signals: Green background
-  - 🔴 Sell signals: Red background  
-  - 🟡 Neutral signals: Yellow background
-- **All Indicator Values**: Complete technical analysis with proper formatting
-  - Numeric indicators: 4 decimal places
-  - Price data: 2 decimal places
-  - Organized by logical groups (Ichimoku, SMA, EMA, etc.)
+**AG-Grid Modern Table Structure**:
+- **Core Columns**: Sector, Ticker, Price, % Change
+- **Close vs MA Series**: vs MA5, MA10, MA20, MA50, MA200 (with color gradient)
+- **Strength Indicators**: ST Strength, LT Strength (integer display)
+- **Historical Ratings**: 
+  - Rating 1: Current, -1d, -2d
+  - Rating 2: Current, -1d, -2d
+- **Trend Indicator**: MA50>MA200 (Yes/No with color coding)
+
+**Visual Features**:
+- **Color Gradient**: Alpha transparency for Close vs MA columns
+  - Green gradient for positive values
+  - Red gradient for negative values  
+  - Intensity based on magnitude (0-15% range)
+- **Compact Design**: 12px font, optimized column widths
+- **No Filters**: Clean header design without filter icons
+- **Blank Separators**: Visual column grouping with spacer columns
 
 ### Export System
 
@@ -124,12 +133,44 @@ Index,^VIX,
 - Excel: Color-coded signals (Buy=Green, Sell=Red, Neutral=Yellow)
 - Auto-generated filenames with timestamps
 
+### Historical Rating System
+
+**3-Day Rating Implementation**:
+- **Current Day**: Calculated from latest indicators using standard pipeline
+- **-1 Day**: Uses `get_latest_indicators()` with previous day's timestamp
+- **-2 Day**: Uses `get_latest_indicators()` with -2 day's timestamp
+- **Consistency**: Rating -1d (when viewing day N) = Rating Current (when viewing day N-1)
+
+**Rating Logic**:
+```python
+# All days use identical calculation pipeline:
+indicators = get_latest_indicators(df_with_indicators, target_date)
+signals = evaluate_all_signals(indicators)
+osc_buy, osc_sell, ma_buy, ma_sell = count_signals(signals)
+rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
+```
+
+**Performance Optimization**:
+- No additional API calls for historical ratings
+- Reuses existing dataframe historical data
+- Efficient date-based indicator extraction
+
 ## Development Notes
 
 ### TradingView Compatibility
 - Indicator values match TradingView within acceptable tolerance (data source differences)
 - Scaling adjustments ensure proper display compatibility
 - Signal logic follows TradingView conventions
+
+### AG-Grid Implementation
+- **Theme**: Balham light theme for modern appearance
+- **Custom Renderers**: JavaScript-based cell formatting
+  - Color gradient renderer with alpha transparency
+  - Percentage formatter with 1 decimal place
+  - Integer formatter for strength columns
+  - Right/center text alignment optimizations
+- **Performance**: Auto-height, no scrolling, optimized column widths
+- **User Experience**: No filter dropdowns, clean header design
 
 ### Data Source Priorities
 1. vnstock for Vietnamese symbols (VNINDEX, VNMID, all VN stocks)

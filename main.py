@@ -4,6 +4,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -57,7 +58,28 @@ try:
     # Load stock list
     stock_df = load_stock_list()
     
-    if st.button("🔄 Run Analysis") or 'analysis_results' not in st.session_state:
+    # Initialize session state if not exists
+    if 'analysis_results' not in st.session_state:
+        st.session_state.analysis_results = None
+        st.session_state.last_analysis_date = None
+        st.session_state.first_load = True
+    
+    # Show refresh button and data status
+    col_btn, col_status = st.columns([1, 3])
+    with col_btn:
+        refresh_clicked = st.button("🔄 Refresh Data")
+    
+    with col_status:
+        if st.session_state.analysis_results is not None:
+            if st.session_state.last_analysis_date != selected_date:
+                st.warning(f"📊 Data loaded for: {st.session_state.last_analysis_date} | Selected: {selected_date} - Click Refresh to update")
+            else:
+                st.success(f"✅ Data loaded for: {st.session_state.last_analysis_date}")
+        else:
+            st.warning("⚠️ No data loaded. Click Refresh to load data.")
+    
+    # Only load data when explicitly requested or first load
+    if refresh_clicked or (st.session_state.analysis_results is None and st.session_state.first_load):
         
         # Initialize results
         results = []
@@ -98,10 +120,8 @@ try:
                         'MA Buy': 0,
                         'MA Sell': 0
                     }
-                    # Add empty signals
-                    from src.utils.signal_counter import OSCILLATOR_SIGNALS, MA_SIGNALS
-                    for signal_name in OSCILLATOR_SIGNALS + MA_SIGNALS:
-                        result_row[signal_name] = 'N/A'
+                    # Add empty signals - just skip signal details for failed cases
+                    pass
                     
                     results.append(result_row)
                     continue
@@ -122,9 +142,8 @@ try:
                         'MA Buy': 0,
                         'MA Sell': 0
                     }
-                    # Add empty signals
-                    for signal_name in OSCILLATOR_SIGNALS + MA_SIGNALS:
-                        result_row[signal_name] = 'N/A'
+                    # Add empty signals - skip for failed cases
+                    pass
                     
                     results.append(result_row)
                     continue
@@ -135,8 +154,39 @@ try:
                 # Count signals
                 osc_buy, osc_sell, ma_buy, ma_sell = count_signals(signals)
                 
-                # Calculate ratings
-                rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
+                # Calculate ratings for current day
+                rating1_current, rating2_current = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
+                
+                # Calculate ratings for previous days using EXACT same logic as current day
+                df_sorted = df_with_indicators.sort_values('Date')
+                
+                # Initialize previous day ratings
+                rating1_prev1, rating2_prev1 = 'N/A', 'N/A'
+                rating1_prev2, rating2_prev2 = 'N/A', 'N/A'
+                
+                # Calculate -1 day rating using IDENTICAL method as current day
+                if len(df_sorted) >= 2:
+                    try:
+                        prev_date = df_sorted.iloc[-2]['Date']
+                        prev_indicators = get_latest_indicators(df_with_indicators, pd.Timestamp(prev_date))
+                        if prev_indicators:
+                            prev_signals = evaluate_all_signals(prev_indicators)
+                            prev_osc_buy, prev_osc_sell, prev_ma_buy, prev_ma_sell = count_signals(prev_signals)
+                            rating1_prev1, rating2_prev1 = calculate_ratings(prev_osc_buy, prev_osc_sell, prev_ma_buy, prev_ma_sell)
+                    except:
+                        rating1_prev1, rating2_prev1 = 'N/A', 'N/A'
+                
+                # Calculate -2 day rating using IDENTICAL method as current day  
+                if len(df_sorted) >= 3:
+                    try:
+                        prev2_date = df_sorted.iloc[-3]['Date']
+                        prev2_indicators = get_latest_indicators(df_with_indicators, pd.Timestamp(prev2_date))
+                        if prev2_indicators:
+                            prev2_signals = evaluate_all_signals(prev2_indicators)
+                            prev2_osc_buy, prev2_osc_sell, prev2_ma_buy, prev2_ma_sell = count_signals(prev2_signals)
+                            rating1_prev2, rating2_prev2 = calculate_ratings(prev2_osc_buy, prev2_osc_sell, prev2_ma_buy, prev2_ma_sell)
+                    except:
+                        rating1_prev2, rating2_prev2 = 'N/A', 'N/A'
                 
                 # Get price info
                 current_price = indicators.get('Price', np.nan)
@@ -168,8 +218,12 @@ try:
                     'Close_vs_MA200': indicators.get('Close_vs_MA200', np.nan),
                     'STRENGTH_ST': indicators.get('STRENGTH_ST', np.nan),
                     'STRENGTH_LT': indicators.get('STRENGTH_LT', np.nan),
-                    'Rating_1': rating1,
-                    'Rating_2': rating2,
+                    'Rating_1_Current': rating1_current,
+                    'Rating_1_Prev1': rating1_prev1,
+                    'Rating_1_Prev2': rating1_prev2,
+                    'Rating_2_Current': rating2_current,
+                    'Rating_2_Prev1': rating2_prev1,
+                    'Rating_2_Prev2': rating2_prev2,
                     'MA50_GT_MA200': 'Yes' if indicators.get('MA50_GT_MA200', False) else 'No'
                 }
                 
@@ -196,9 +250,8 @@ try:
                     'MA Buy': 0,
                     'MA Sell': 0
                 }
-                # Add empty signals
-                for signal_name in OSCILLATOR_SIGNALS + MA_SIGNALS:
-                    result_row[signal_name] = 'Error'
+                # Add empty signals - skip for error cases
+                pass
                 
                 results.append(result_row)
         
@@ -206,76 +259,45 @@ try:
         progress_bar.empty()
         status_text.empty()
         
-        # Store results
+        # Store results and date
         st.session_state.analysis_results = pd.DataFrame(results)
+        st.session_state.last_analysis_date = selected_date
+        st.session_state.first_load = False  # Mark that first load is done
     
-    # Display results
-    if 'analysis_results' in st.session_state:
+    # Display results only if data exists
+    if 'analysis_results' in st.session_state and st.session_state.analysis_results is not None:
         df_results = st.session_state.analysis_results
+        
+        if df_results.empty:
+            st.error("No data available for the selected date.")
+            st.stop()
         
         st.subheader("📊 Analysis Results")
         
-        # Organize columns for better display
-        basic_cols = ['Sector', 'Ticker', 'Price', '% Change', 'Osc Buy', 'Osc Sell', 'MA Buy', 'MA Sell']
-        new_cols = ['MA5', 'Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 'Close_vs_MA200', 
-                   'STRENGTH_ST', 'STRENGTH_LT', 'Rating_1', 'Rating_2', 'MA50_GT_MA200']
+        # Define only the columns to display as requested
+        requested_cols = ['Sector', 'Ticker', 'Price', '% Change', 'Close_vs_MA5', 'Close_vs_MA10', 
+                         'Close_vs_MA20', 'Close_vs_MA50', 'Close_vs_MA200', 'STRENGTH_ST', 
+                         'STRENGTH_LT', 'Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2',
+                         'Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2', 'MA50_GT_MA200']
         
-        # Get all signal columns
-        from src.utils.signal_counter import OSCILLATOR_SIGNALS, MA_SIGNALS
-        signal_cols = OSCILLATOR_SIGNALS + MA_SIGNALS
+        # Filter to only available columns
+        available_columns = [col for col in requested_cols if col in df_results.columns]
         
-        # Define indicator columns in logical groups
-        ichimoku_cols = ['Ichimoku_Base', 'Ichimoku_Conversion', 'Ichimoku_A', 'Ichimoku_B']
-        sma_cols = [f'SMA_{p}' for p in [5, 10, 20, 30, 50, 100, 200]]
-        ema_cols = [f'EMA_{p}' for p in [10, 13, 20, 30, 50, 100, 200]]
-        other_ma_cols = ['VWMA_20', 'Hull_MA_9']
+        display_df = df_results[available_columns].copy()
         
-        oscillator_cols = ['RSI_14', 'Stoch_K', 'Stoch_D', 'CCI_20', 'ADX_14', 'AO', 'Momentum_10', 
-                          'MACD', 'MACD_Signal', 'StochRSI_K', 'StochRSI_D', 'Williams_R', 
-                          'UO', 'Bull_Power', 'Bear_Power', 'DMI_Positive', 'DMI_Negative']
+        # Add blank column between Close_vs_MA200 and STRENGTH_ST
+        blank_col_index = list(display_df.columns).index('Close_vs_MA200') + 1
+        display_df.insert(blank_col_index, '　', '')  # Using full-width space as column name
         
-        price_cols = ['High', 'Low']
-        prev_cols = ['RSI_Prev', 'CCI_Prev', 'ADX_Prev', 'Momentum_Prev', 'Williams_R_Prev', 
-                    'Bull_Power_Prev', 'Bear_Power_Prev', 'EMA_13_Prev', 'AO_Prev']
+        # Add blank column between STRENGTH_LT and Rating_1_Current
+        if 'STRENGTH_LT' in display_df.columns and 'Rating_1_Current' in display_df.columns:
+            blank_col_index2 = list(display_df.columns).index('STRENGTH_LT') + 1
+            display_df.insert(blank_col_index2, '　　', '')  # Using double full-width space
         
-        # Filter available columns
-        available_signal_cols = [col for col in signal_cols if col in df_results.columns]
-        available_ichimoku = [col for col in ichimoku_cols if col in df_results.columns]
-        available_sma = [col for col in sma_cols if col in df_results.columns]
-        available_ema = [col for col in ema_cols if col in df_results.columns]
-        available_other_ma = [col for col in other_ma_cols if col in df_results.columns]
-        available_osc = [col for col in oscillator_cols if col in df_results.columns]
-        available_price = [col for col in price_cols if col in df_results.columns]
-        available_prev = [col for col in prev_cols if col in df_results.columns]
-        
-        # Filter new columns that exist
-        available_new_cols = [col for col in new_cols if col in df_results.columns]
-        
-        # Order: Basic info -> New Columns -> Signals -> Indicators (grouped logically)
-        column_order = (basic_cols + available_new_cols + available_signal_cols + 
-                       available_ichimoku + available_sma + available_ema + available_other_ma + 
-                       available_osc + available_price + available_prev)
-        
-        # Create ordered dataframe with available columns only
-        available_columns = [col for col in column_order if col in df_results.columns]
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_columns = []
-        for col in available_columns:
-            if col not in seen:
-                unique_columns.append(col)
-                seen.add(col)
-        
-        display_df = df_results[unique_columns].copy()
-        
-        # Format numeric columns (add new numeric columns to format list)
-        numeric_new_cols = ['MA5', 'Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 
-                           'Close_vs_MA200', 'STRENGTH_ST', 'STRENGTH_LT']
-        available_numeric_new_cols = [col for col in numeric_new_cols if col in df_results.columns]
-        
-        numeric_cols = (available_ichimoku + available_sma + available_ema + available_other_ma + 
-                       available_osc + available_price + available_prev + available_numeric_new_cols)
+        # Format numeric columns for the requested display columns
+        numeric_cols = ['Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 
+                       'Close_vs_MA200', 'STRENGTH_ST', 'STRENGTH_LT']
+        numeric_cols = [col for col in numeric_cols if col in display_df.columns]
         
         # Format price and % change
         def format_price(x):
@@ -311,33 +333,385 @@ try:
             if col in display_df.columns:
                 display_df[col] = display_df[col].apply(format_numeric)
         
-        # Style the dataframe for signal colors
-        def style_signals(val):
-            if val == 'Buy':
-                return 'background-color: #d4edda; color: #155724'  # Green
-            elif val == 'Sell':
-                return 'background-color: #f8d7da; color: #721c24'  # Red  
-            elif val == 'Neutral':
-                return 'background-color: #fff3cd; color: #856404'  # Yellow
-            else:
-                return ''
+        # Configure AG-Grid with conditional formatting
+        gb = GridOptionsBuilder.from_dataframe(display_df)
         
-        # Apply styling only to signal columns that exist in display_df
-        signal_cols_in_df = [col for col in available_signal_cols if col in display_df.columns]
+        # Configure grid options for modern style like reference image
+        gb.configure_pagination(enabled=True, paginationPageSize=50)
+        gb.configure_side_bar()
+        gb.configure_default_column(
+            groupable=False,
+            value=True,
+            enableRowGroup=False,
+            aggFunc=None,
+            editable=False,
+            filter=False,  # Disable all filters
+            sortable=True,
+            resizable=True,
+            suppressMenu=True,  # Suppress menu button
+            menuTabs=[]  # Remove all menu tabs
+        )
         
-        if signal_cols_in_df:
-            styled_df = display_df.style.applymap(
-                style_signals, 
-                subset=signal_cols_in_df
-            )
-        else:
-            styled_df = display_df
+        # Custom CSS for AG-Grid styling - simple and direct approach
+        st.markdown("""
+        <style>
+        /* Header cells - small font and compact */
+        .ag-header-cell {
+            font-size: 10px !important;
+            padding: 4px 6px !important;
+            font-weight: 500 !important;
+        }
         
-        # Display table
-        st.dataframe(
-            styled_df,
-            use_container_width=True,
-            hide_index=True
+        /* Header text specifically */
+        .ag-header-cell-text {
+            font-size: 10px !important;
+            font-weight: 500 !important;
+            line-height: 1.2 !important;
+        }
+        
+        /* Hide menu buttons completely */
+        .ag-header-cell-menu-button {
+            display: none !important;
+        }
+        
+        /* Hide floating filter wrapper */
+        .ag-floating-filter-wrapper {
+            display: none !important;
+        }
+        
+        /* Cell styling - keep readable size */
+        .ag-cell {
+            font-size: 12px !important;
+            padding: 4px 6px !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+        }
+        
+        /* Row height compact */
+        .ag-row {
+            height: 28px !important;
+        }
+        
+        /* Header row height */
+        .ag-header-row {
+            height: 32px !important;
+        }
+        
+        /* Sort indicators */
+        .ag-header-cell-sortable .ag-header-cell-menu-button {
+            display: none !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Configure grid theme and styling with compact layout
+        gb.configure_grid_options(
+            suppressRowClickSelection=True,
+            rowSelection='multiple',
+            enableRangeSelection=True,
+            suppressMovableColumns=False,
+            suppressColumnMoveAnimation=False,
+            animateRows=True,
+            headerHeight=24,  # Further reduced header height
+            rowHeight=22,     # Further reduced row height for compact display
+            suppressMenuHide=True,  # Prevent menu from showing
+            suppressHeaderMenuButton=True,  # Completely suppress header menu buttons
+            suppressHeaderFilterButton=True,  # Suppress header filter buttons
+            defaultColDef={
+                'sortable': True,
+                'filter': False,  # Disable filters
+                'resizable': True,
+                'suppressMenu': True,  # Suppress menu for all columns
+                'suppressHeaderMenuButton': True,  # Suppress menu button
+                'suppressHeaderFilterButton': True,  # Suppress filter button
+                'menuTabs': [],  # No menu tabs
+                'autoHeaderHeight': True,  # Enable header text wrapping
+                'wrapHeaderText': True,    # Wrap header text
+            }
+        )
+        
+        # Percentage renderer with normal font weight
+        percentage_renderer = JsCode("""
+        class PercentageRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'right';
+                this.eGui.style.fontSize = '12px';
+                
+                if (value !== null && value !== undefined && value !== 'N/A' && value !== '') {
+                    // Just display the value as is (it's already formatted from Python)
+                    this.eGui.innerHTML = value;
+                    
+                    // Try to extract numeric value for coloring
+                    const stringValue = value.toString();
+                    const numMatch = stringValue.match(/[-+]?[\d.]+/);
+                    if (numMatch) {
+                        const numValue = parseFloat(numMatch[0]);
+                        if (numValue > 0) {
+                            this.eGui.style.color = '#28a745';
+                        } else if (numValue < 0) {
+                            this.eGui.style.color = '#dc3545';
+                        } else {
+                            this.eGui.style.color = '#6c757d';
+                        }
+                    }
+                } else {
+                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.style.color = '#6c757d';
+                }
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # Color gradient renderer using alpha transparency like the reference
+        color_cells = JsCode("""
+        function(params) {
+            if (params.value > 0) {
+                let alpha = Math.min(params.value / 15, 1).toFixed(2);
+                return {
+                    'color': 'black',
+                    'backgroundColor': `rgba(34,197,94,${alpha})`
+                };
+            } else if (params.value < 0) {
+                let alpha = Math.min(Math.abs(params.value) / 15, 1).toFixed(2);
+                return {
+                    'color': 'black',
+                    'backgroundColor': `rgba(239,68,68,${alpha})`
+                };
+            }
+            return {
+                'color': 'black',
+                'backgroundColor': 'white'
+            };
+        }
+        """)
+        
+        # Close vs MA renderer with smaller font
+        close_ma_renderer = JsCode("""
+        class CloseMaRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'center';
+                this.eGui.style.fontSize = '12px';
+                
+                if (value !== null && value !== undefined && value !== 'N/A') {
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        // Display as percentage with 1 decimal place
+                        this.eGui.innerHTML = numValue.toFixed(1) + '%';
+                    } else {
+                        this.eGui.innerHTML = 'N/A';
+                    }
+                } else {
+                    this.eGui.innerHTML = 'N/A';
+                }
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # Strength renderer with smaller font
+        strength_renderer = JsCode("""
+        class StrengthRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'center';
+                this.eGui.style.fontSize = '12px';
+                
+                if (value !== null && value !== undefined && value !== 'N/A') {
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        // Display as integer (no decimals)
+                        this.eGui.innerHTML = Math.round(numValue);
+                    } else {
+                        this.eGui.innerHTML = value;
+                    }
+                } else {
+                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.style.color = '#6c757d';
+                }
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # Simple renderer with smaller font
+        simple_renderer = JsCode("""
+        class SimpleRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'center';
+                this.eGui.style.fontSize = '12px';
+                
+                if (value !== null && value !== undefined && value !== 'N/A') {
+                    this.eGui.innerHTML = value;
+                } else {
+                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.style.color = '#6c757d';
+                }
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # Numeric renderer with smaller font
+        numeric_renderer = JsCode("""
+        class NumericRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'right';
+                this.eGui.style.fontSize = '12px';
+                
+                if (value !== null && value !== undefined && value !== 'N/A') {
+                    this.eGui.innerHTML = value;
+                } else {
+                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.style.color = '#6c757d';
+                }
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # MA50>MA200 renderer with smaller font
+        ma_comparison_renderer = JsCode("""
+        class MaComparisonRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.innerHTML = value || 'N/A';
+                this.eGui.style.textAlign = 'center';
+                this.eGui.style.fontSize = '12px';
+                
+                if (!value || value === 'N/A') {
+                    this.eGui.style.color = '#6c757d';
+                }
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # Apply cell renderers to specific columns
+        if '% Change' in display_df.columns:
+            gb.configure_column('% Change', cellRenderer=percentage_renderer)
+        
+        # Close vs MA columns with color gradient and formatting
+        close_vs_ma_cols = ['Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 'Close_vs_MA200']
+        for col in close_vs_ma_cols:
+            if col in display_df.columns:
+                gb.configure_column(col, 
+                                  cellStyle=color_cells,
+                                  cellRenderer=close_ma_renderer,
+                                  type=["numericColumn", "centerAligned"])
+        
+        # Price column with right alignment and number formatting
+        if 'Price' in display_df.columns:
+            gb.configure_column('Price', 
+                              cellRenderer=numeric_renderer,
+                              type=["numericColumn", "rightAligned"])
+        
+        # Strength columns without decimals, center aligned
+        if 'STRENGTH_ST' in display_df.columns:
+            gb.configure_column('STRENGTH_ST', cellRenderer=strength_renderer)
+        if 'STRENGTH_LT' in display_df.columns:
+            gb.configure_column('STRENGTH_LT', cellRenderer=strength_renderer)
+        
+        # Rating columns without colors (all 6 rating columns)
+        rating_cols = ['Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2', 
+                      'Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2']
+        for col in rating_cols:
+            if col in display_df.columns:
+                gb.configure_column(col, cellRenderer=simple_renderer)
+        
+        # MA50>MA200 column with colors
+        if 'MA50_GT_MA200' in display_df.columns:
+            gb.configure_column('MA50_GT_MA200', cellRenderer=ma_comparison_renderer)
+        
+        # Add consistent font renderer for text columns
+        text_renderer = JsCode("""
+        class TextRenderer {
+            init(params) {
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'left';
+                this.eGui.style.fontSize = '12px';
+                this.eGui.innerHTML = value || 'N/A';
+            }
+            
+            getGui() {
+                return this.eGui;
+            }
+        }
+        """)
+        
+        # Configure optimized column widths with consistent font
+        gb.configure_column('Sector', width=60, headerName='Sector', cellRenderer=text_renderer, suppressMenu=True)
+        gb.configure_column('Ticker', width=70, headerName='Ticker', cellRenderer=text_renderer, suppressMenu=True)  # Removed pinned
+        gb.configure_column('Price', width=80, headerName='Price', suppressMenu=True)
+        gb.configure_column('% Change', width=85, headerName='% Change', suppressMenu=True)
+        
+        # Close vs MA columns with shorter headers and compact width
+        gb.configure_column('Close_vs_MA5', width=75, headerName='vs MA5', suppressMenu=True)
+        gb.configure_column('Close_vs_MA10', width=75, headerName='vs MA10', suppressMenu=True)
+        gb.configure_column('Close_vs_MA20', width=75, headerName='vs MA20', suppressMenu=True)
+        gb.configure_column('Close_vs_MA50', width=75, headerName='vs MA50', suppressMenu=True)
+        gb.configure_column('Close_vs_MA200', width=75, headerName='vs MA200', suppressMenu=True)
+        
+        # Blank columns
+        gb.configure_column('　', width=20, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
+        gb.configure_column('　　', width=20, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
+        
+        gb.configure_column('STRENGTH_ST', width=80, headerName='ST\nStrength', suppressMenu=True)
+        gb.configure_column('STRENGTH_LT', width=80, headerName='LT\nStrength', suppressMenu=True)
+        
+        # Rating columns with date headers
+        gb.configure_column('Rating_1_Current', width=70, headerName='R1\nToday', suppressMenu=True)
+        gb.configure_column('Rating_1_Prev1', width=70, headerName='R1\n-1d', suppressMenu=True)
+        gb.configure_column('Rating_1_Prev2', width=70, headerName='R1\n-2d', suppressMenu=True)
+        gb.configure_column('Rating_2_Current', width=70, headerName='R2\nToday', suppressMenu=True)
+        gb.configure_column('Rating_2_Prev1', width=70, headerName='R2\n-1d', suppressMenu=True)
+        gb.configure_column('Rating_2_Prev2', width=70, headerName='R2\n-2d', suppressMenu=True)
+        
+        gb.configure_column('MA50_GT_MA200', width=85, headerName='MA50>\nMA200', suppressMenu=True)
+        
+        # Build grid options
+        grid_options = gb.build()
+        
+        # Display AG-Grid without scrolling
+        AgGrid(
+            display_df,
+            gridOptions=grid_options,
+            data_return_mode=DataReturnMode.AS_INPUT,
+            update_mode=GridUpdateMode.MODEL_CHANGED,
+            fit_columns_on_grid_load=True,
+            theme='balham',  # Modern light theme
+            enable_enterprise_modules=False,
+            height=None,  # Auto height, no scrolling
+            width='100%',
+            allow_unsafe_jscode=True  # Required for custom JsCode renderers
         )
         
         # Summary statistics
@@ -345,20 +719,36 @@ try:
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            avg_osc_buy = df_results['Osc Buy'].mean()
-            st.metric("Avg Osc Buy", f"{avg_osc_buy:.1f}")
+            total_stocks = len(df_results)
+            st.metric("Total Stocks", f"{total_stocks}")
         
         with col2:
-            avg_osc_sell = df_results['Osc Sell'].mean()
-            st.metric("Avg Osc Sell", f"{avg_osc_sell:.1f}")
+            if 'Rating_1' in df_results.columns:
+                buy_ratings = len(df_results[df_results['Rating_1'].isin(['Buy', 'Strong Buy'])])
+                st.metric("Buy Ratings", f"{buy_ratings}")
+            else:
+                st.metric("Buy Ratings", "N/A")
         
         with col3:
-            avg_ma_buy = df_results['MA Buy'].mean()
-            st.metric("Avg MA Buy", f"{avg_ma_buy:.1f}")
+            if 'MA50_GT_MA200' in df_results.columns:
+                bullish_trend = len(df_results[df_results['MA50_GT_MA200'] == 'Yes'])
+                st.metric("Bullish Trend", f"{bullish_trend}")
+            else:
+                st.metric("Bullish Trend", "N/A")
         
         with col4:
-            avg_ma_sell = df_results['MA Sell'].mean()
-            st.metric("Avg MA Sell", f"{avg_ma_sell:.1f}")
+            if 'STRENGTH_ST' in df_results.columns:
+                avg_strength_st = df_results['STRENGTH_ST'].apply(pd.to_numeric, errors='coerce').mean()
+                if pd.notna(avg_strength_st):
+                    st.metric("Avg ST Strength", f"{avg_strength_st:.2f}")
+                else:
+                    st.metric("Avg ST Strength", "N/A")
+            else:
+                st.metric("Avg ST Strength", "N/A")
+    
+    else:
+        # No data loaded yet
+        st.info("👆 Please click 'Refresh Data' button to load analysis results.")
 
 except Exception as e:
     st.error(f"Error during analysis: {str(e)}")
