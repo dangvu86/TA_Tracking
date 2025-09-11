@@ -26,7 +26,7 @@ st.markdown("""
     .main-header {
         text-align: center;
         padding: 0.2rem 0;
-        background: #bbfabd;
+        background: #d4fcd5;
         color: #757575;
         border-radius: 5px;
         margin-bottom: 0.2rem;
