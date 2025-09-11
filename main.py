@@ -976,38 +976,7 @@ try:
             allow_unsafe_jscode=True  # Required for custom JsCode renderers
         )
         
-        # Summary statistics
-        st.subheader("📈 Summary Statistics")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            total_stocks = len(df_results)
-            st.metric("Total Stocks", f"{total_stocks}")
-        
-        with col2:
-            if 'Rating_1' in df_results.columns:
-                buy_ratings = len(df_results[df_results['Rating_1'].isin(['Buy', 'Strong Buy'])])
-                st.metric("Buy Ratings", f"{buy_ratings}")
-            else:
-                st.metric("Buy Ratings", "N/A")
-        
-        with col3:
-            if 'MA50_GT_MA200' in df_results.columns:
-                bullish_trend = len(df_results[df_results['MA50_GT_MA200'] == 'Yes'])
-                st.metric("Bullish Trend", f"{bullish_trend}")
-            else:
-                st.metric("Bullish Trend", "N/A")
-        
-        with col4:
-            if 'STRENGTH_ST' in df_results.columns:
-                avg_strength_st = df_results['STRENGTH_ST'].apply(pd.to_numeric, errors='coerce').mean()
-                if pd.notna(avg_strength_st):
-                    st.metric("Avg ST Strength", f"{avg_strength_st:.2f}")
-                else:
-                    st.metric("Avg ST Strength", "N/A")
-            else:
-                st.metric("Avg ST Strength", "N/A")
-    
+       
     else:
         # No data loaded yet
         st.info("👆 Please click 'Refresh Data' button to load analysis results.")
