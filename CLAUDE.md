@@ -70,13 +70,14 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 ### Streamlit App Structure
 
 **Main Page** (`main.py`): 
-- **AG-Grid Modern Table** with Balham light theme
+- **AG-Grid Modern Table** with Balham light theme and fixed headers
 - **Smart Refresh System**: Manual data loading with status indicators
-- **Historical Rating System**: Shows 3-day rating history (Current, -1d, -2d)
+- **Historical Rating System**: Shows 3-day rating history (T, T-1, T-2)
 - Date picker with intelligent trading day default
-- **Compact Display**: Optimized columns for essential metrics only
+- **Scrollable Display**: Fixed height (600px) with sticky headers and pinned Ticker column
 - Real-time progress tracking during analysis
-- **Conditional Formatting**: Color gradients for Close vs MA percentages
+- **Advanced Gradient System**: Dynamic color gradients with separate scaling for different column groups
+- **Totals Row**: Summary statistics with totals for STRENGTH and Rating columns
 
 **Charts Page** (`pages/1_📈_Charts.py`):
 - Reserved for future charting functionality
@@ -109,22 +110,31 @@ Index,^VIX,
 ### Display & Visualization
 
 **AG-Grid Modern Table Structure**:
-- **Core Columns**: Sector, Ticker, Price, % Change
-- **Close vs MA Series**: vs MA5, MA10, MA20, MA50, MA200 (with color gradient)
-- **Strength Indicators**: ST Strength, LT Strength (integer display)
+- **Core Columns**: Sector, Ticker (pinned), Price, % Change
+- **Close vs MA Series**: vs MA5, MA10, MA20, MA50, MA200 (with dynamic gradient)
+- **Strength Indicators**: ST Strength, LT Strength (with gradient backgrounds)
 - **Historical Ratings**: 
-  - Rating 1: Current, -1d, -2d
-  - Rating 2: Current, -1d, -2d
+  - Rating1: T, T-1, T-2 (with separate gradient scaling)
+  - Rating2: T, T-1, T-2 (with separate gradient scaling)
 - **Trend Indicator**: MA50>MA200 (Yes/No with color coding)
+- **Totals Row**: Bottom row with sums for numeric columns
+
+**Advanced Gradient System**:
+- **Dynamic Scaling**: Each column group has separate min/max calculation
+  - Close vs MA: Scaled to actual data range (excludes totals row)
+  - STRENGTH columns: Independent scaling for ST/LT values
+  - Rating1 columns: Scaled to Rating1 data range only
+  - Rating2 columns: Scaled to Rating2 data range only
+- **Light Colors**: Max alpha 0.5 for subtle appearance
+- **Totals Row Exclusion**: Summary row has uniform background, no gradients
 
 **Visual Features**:
-- **Color Gradient**: Alpha transparency for Close vs MA columns
-  - Green gradient for positive values
-  - Red gradient for negative values  
-  - Intensity based on magnitude (0-15% range)
-- **Compact Design**: 12px font, optimized column widths
-- **No Filters**: Clean header design without filter icons
-- **Blank Separators**: Visual column grouping with spacer columns
+- **Scrollable Design**: 600px height with horizontal/vertical scrolling
+- **Fixed Elements**: Headers stay visible when scrolling, Ticker column pinned left
+- **Center-Aligned Headers**: All column headers centered with 10px font
+- **Compact Cells**: 12px font, optimized spacing
+- **No Pagination**: Single-page display with scrollbars
+- **Visual Separators**: Blank columns (15-20px) between logical groups
 
 ### Export System
 
@@ -165,12 +175,14 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 ### AG-Grid Implementation
 - **Theme**: Balham light theme for modern appearance
 - **Custom Renderers**: JavaScript-based cell formatting
-  - Color gradient renderer with alpha transparency
+  - Dynamic gradient renderer with separate scaling per column group
   - Percentage formatter with 1 decimal place
   - Integer formatter for strength columns
-  - Right/center text alignment optimizations
-- **Performance**: Auto-height, no scrolling, optimized column widths
-- **User Experience**: No filter dropdowns, clean header design
+  - Text renderers with consistent 12px font
+- **Scrolling Features**: Fixed 600px height with sticky headers
+- **Column Pinning**: Ticker column pinned to left for horizontal scrolling
+- **User Experience**: No pagination, no filter dropdowns, center-aligned headers
+- **Performance**: Separate gradient calculations exclude totals row for accurate scaling
 
 ### Data Source Priorities
 1. vnstock for Vietnamese symbols (VNINDEX, VNMID, all VN stocks)
@@ -185,12 +197,14 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 
 ### Vietnamese Market Integration
 - **VNMID mapping**: Automatically converts VNMID → VNMIDCAP for vnstock
-- **VCI source**: VNMIDCAP requires VCI source specifically
-- **TCBS source**: VNINDEX and stocks use TCBS source
+- **VCI source**: VNMIDCAP requires VCI source specifically with fallback to TCBS
+- **TCBS source**: VNINDEX and stocks use TCBS source with VCI fallback
+- **Retry mechanism**: 2 attempts per source with 1-second delay for connection reliability
 - **Error prevention**: All CSV entries must have proper Sector values
 
 ### Error Handling Patterns
 - Duplicate column prevention in dataframe construction
-- Safe numeric formatting with try-catch blocks
+- Safe numeric formatting with empty string fallback (no "N/A" display)
 - Graceful degradation for missing indicator data
 - Progress tracking with individual stock error handling
+- Connection retry logic for cloud deployment stability

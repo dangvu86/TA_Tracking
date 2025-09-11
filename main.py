@@ -15,8 +15,7 @@ from src.indicators.calculator import calculate_all_indicators, get_latest_indic
 from src.indicators.signals import evaluate_all_signals
 
 st.set_page_config(
-    page_title="Technical Analysis Summary",
-    page_icon="📈",
+    page_title="Technical Tracking Summary",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -26,11 +25,12 @@ st.markdown("""
 <style>
     .main-header {
         text-align: center;
-        padding: 1rem 0;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 10px;
-        margin-bottom: 1rem;
+        padding: 0.2rem 0;
+        background: #f0fdf4;
+        color: black;
+        border-radius: 5px;
+        margin-bottom: 0.2rem;
+        font-size: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -38,15 +38,15 @@ st.markdown("""
 # Main header
 st.markdown("""
 <div class="main-header">
-    <h1>📈 Technical Analysis Summary</h1>
+    <h1>Technical Tracking Summary</h1>
 </div>
 """, unsafe_allow_html=True)
 
 
 # Date selection
-st.subheader("📅 Analysis Date")
+
 selected_date = st.date_input(
-    "Select Analysis Date",
+    "Select Date",
     value=get_last_trading_date().date(),
     max_value=datetime.now().date()
 )
@@ -272,7 +272,7 @@ try:
             st.error("No data available for the selected date.")
             st.stop()
         
-        st.subheader("📊 Analysis Results")
+       
         
         # Define only the columns to display as requested
         requested_cols = ['Sector', 'Ticker', 'Price', '% Change', 'Close_vs_MA5', 'Close_vs_MA10', 
@@ -285,6 +285,26 @@ try:
         
         display_df = df_results[available_columns].copy()
         
+        # Calculate totals for numeric columns
+        totals_row = {}
+        for col in display_df.columns:
+            if col in ['STRENGTH_ST', 'STRENGTH_LT', 'Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2', 
+                      'Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2']:
+                # Sum numeric values
+                numeric_values = pd.to_numeric(display_df[col], errors='coerce')
+                total_sum = numeric_values.sum() if not numeric_values.isna().all() else 0
+                totals_row[col] = total_sum if total_sum != 0 else ''  # Empty if zero
+            elif col == 'Sector':
+                totals_row[col] = 'TOTAL'
+            elif col == 'Ticker':
+                totals_row[col] = f'({len(display_df)} stocks)'
+            else:
+                totals_row[col] = ' '  # Empty for non-summed columns
+        
+        # Add totals row to dataframe
+        totals_df = pd.DataFrame([totals_row])
+        display_df = pd.concat([display_df, totals_df], ignore_index=True)
+        
         # Add blank column between Close_vs_MA200 and STRENGTH_ST
         blank_col_index = list(display_df.columns).index('Close_vs_MA200') + 1
         display_df.insert(blank_col_index, '　', '')  # Using full-width space as column name
@@ -294,6 +314,11 @@ try:
             blank_col_index2 = list(display_df.columns).index('STRENGTH_LT') + 1
             display_df.insert(blank_col_index2, '　　', '')  # Using double full-width space
         
+        # Add blank column between Rating_1_Prev2 and Rating_2_Current
+        if 'Rating_1_Prev2' in display_df.columns and 'Rating_2_Current' in display_df.columns:
+            blank_col_index3 = list(display_df.columns).index('Rating_1_Prev2') + 1
+            display_df.insert(blank_col_index3, '　　　', '')  # Using triple full-width space
+        
         # Format numeric columns for the requested display columns
         numeric_cols = ['Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 
                        'Close_vs_MA200', 'STRENGTH_ST', 'STRENGTH_LT']
@@ -302,15 +327,15 @@ try:
         # Format price and % change
         def format_price(x):
             try:
-                return f"{float(x):.2f}" if pd.notna(x) and isinstance(x, (int, float)) else "N/A"
+                return f"{float(x):.1f}" if pd.notna(x) and isinstance(x, (int, float)) else ""
             except:
-                return "N/A"
+                return ""
         
         def format_change(x):
             try:
-                return f"{float(x):+.2f}%" if pd.notna(x) and isinstance(x, (int, float)) else "N/A"
+                return f"{float(x):.1f}%" if pd.notna(x) and isinstance(x, (int, float)) else ""
             except:
-                return "N/A"
+                return ""
         
         if 'Price' in display_df.columns:
             display_df['Price'] = display_df['Price'].apply(format_price)
@@ -321,7 +346,7 @@ try:
         def format_numeric(x):
             try:
                 if pd.isna(x):
-                    return "N/A"
+                    return ""
                 elif isinstance(x, (int, float)):
                     return f"{float(x):.4f}"
                 else:
@@ -337,38 +362,12 @@ try:
         gb = GridOptionsBuilder.from_dataframe(display_df)
         
         # Configure grid options for modern style like reference image
-        gb.configure_pagination(enabled=True, paginationPageSize=50)
+        gb.configure_pagination(enabled=False)  # Disable pagination
         gb.configure_side_bar()
-        gb.configure_default_column(
-            groupable=False,
-            value=True,
-            enableRowGroup=False,
-            aggFunc=None,
-            editable=False,
-            filter=False,  # Disable all filters
-            sortable=True,
-            resizable=True,
-            suppressMenu=True,  # Suppress menu button
-            menuTabs=[]  # Remove all menu tabs
-        )
         
         # Custom CSS for AG-Grid styling - simple and direct approach
         st.markdown("""
         <style>
-        /* Header cells - small font and compact */
-        .ag-header-cell {
-            font-size: 10px !important;
-            padding: 4px 6px !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Header text specifically */
-        .ag-header-cell-text {
-            font-size: 10px !important;
-            font-weight: 500 !important;
-            line-height: 1.2 !important;
-        }
-        
         /* Hide menu buttons completely */
         .ag-header-cell-menu-button {
             display: none !important;
@@ -379,26 +378,72 @@ try:
             display: none !important;
         }
         
-        /* Cell styling - keep readable size */
+        /* Header font size and center alignment */
+        .ag-header-cell-text {
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-align: center !important;
+        }
+        
+        /* Center align header content */
+        .ag-header-cell {
+            text-align: center !important;
+        }
+        
+        /* Force header font size with more specific selectors */
+        .ag-theme-balham .ag-header-cell-text {
+            font-size: 11px !important;
+        }
+        
+        .ag-theme-balham .ag-header-cell-label {
+            font-size: 11px !important;
+        }
+        
+        /* Cell styling */
         .ag-cell {
             font-size: 12px !important;
             padding: 4px 6px !important;
             border-bottom: 1px solid #f3f4f6 !important;
         }
         
-        /* Row height compact */
-        .ag-row {
-            height: 28px !important;
+        /* Ensure background fills entire cell */
+        .ag-cell > div {
+            width: 100% !important;
+            height: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
         
-        /* Header row height */
-        .ag-header-row {
-            height: 32px !important;
+        /* Row hover effect - green color */
+        .ag-row-hover {
+            background-color: #dcfce7 !important;
         }
         
-        /* Sort indicators */
-        .ag-header-cell-sortable .ag-header-cell-menu-button {
-            display: none !important;
+        /* Style for totals row - make it stand out and override gradients */
+        .ag-row:last-child {
+            background-color: #dcfce7 !important;
+            border-top: 2px solid #6c757d !important;
+            font-weight: bold !important;
+        }
+        
+        .ag-row:last-child .ag-cell {
+            background-color: #dcfce7 !important;
+            font-weight: bold !important;
+        }
+        
+        /* Override gradients for totals row - force white background for all cells */
+        .ag-row:last-child .ag-cell > div {
+            background-color: transparent !important;
+        }
+        
+        /* Override hover for totals row */
+        .ag-row:last-child.ag-row-hover {
+            background-color: #dcfce7 !important;
+        }
+        
+        .ag-row:last-child.ag-row-hover .ag-cell {
+            background-color: #dcfce7 !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -411,21 +456,26 @@ try:
             suppressMovableColumns=False,
             suppressColumnMoveAnimation=False,
             animateRows=True,
-            headerHeight=24,  # Further reduced header height
-            rowHeight=22,     # Further reduced row height for compact display
-            suppressMenuHide=True,  # Prevent menu from showing
-            suppressHeaderMenuButton=True,  # Completely suppress header menu buttons
-            suppressHeaderFilterButton=True,  # Suppress header filter buttons
+            headerHeight=28,
+            rowHeight=24,
+            suppressMenuHide=True,
+            suppressHeaderMenuButton=True,
+            suppressHeaderFilterButton=True,
+            alwaysShowHorizontalScroll=True,
+            alwaysShowVerticalScroll=True,
+            suppressHorizontalScroll=False,
+            suppressAutoSize=True,  # Prevent auto-sizing that overrides width settings
             defaultColDef={
                 'sortable': True,
-                'filter': False,  # Disable filters
+                'filter': False,
                 'resizable': True,
-                'suppressMenu': True,  # Suppress menu for all columns
-                'suppressHeaderMenuButton': True,  # Suppress menu button
-                'suppressHeaderFilterButton': True,  # Suppress filter button
-                'menuTabs': [],  # No menu tabs
-                'autoHeaderHeight': True,  # Enable header text wrapping
-                'wrapHeaderText': True,    # Wrap header text
+                'suppressMenu': True,
+                'suppressHeaderMenuButton': True,
+                'suppressHeaderFilterButton': True,
+                'menuTabs': [],
+                'autoHeaderHeight': True,
+                'wrapHeaderText': True,
+                'suppressAutoSize': True,  # Prevent individual columns from auto-sizing
             }
         )
         
@@ -438,7 +488,7 @@ try:
                 this.eGui.style.textAlign = 'right';
                 this.eGui.style.fontSize = '12px';
                 
-                if (value !== null && value !== undefined && value !== 'N/A' && value !== '') {
+                if (value !== null && value !== undefined && value !== '' && value !== '') {
                     // Just display the value as is (it's already formatted from Python)
                     this.eGui.innerHTML = value;
                     
@@ -456,7 +506,7 @@ try:
                         }
                     }
                 } else {
-                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.innerHTML = '';
                     this.eGui.style.color = '#6c757d';
                 }
             }
@@ -467,27 +517,106 @@ try:
         }
         """)
         
-        # Color gradient renderer using alpha transparency like the reference
-        color_cells = JsCode("""
-        function(params) {
-            if (params.value > 0) {
-                let alpha = Math.min(params.value / 15, 1).toFixed(2);
-                return {
+        # Calculate max/min values for gradient scaling (exclude totals row)
+        close_vs_ma_cols = ['Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 'Close_vs_MA200']
+        all_values = []
+        for col in close_vs_ma_cols:
+            if col in display_df.columns:
+                # Exclude last row (totals) from gradient calculation
+                numeric_values = pd.to_numeric(display_df[col].iloc[:-1], errors='coerce').dropna()
+                all_values.extend(numeric_values.tolist())
+        
+        if all_values:
+            min_val = min(all_values)  # Keep negative as is
+            max_val = max(all_values)  # Keep positive as is
+        else:
+            min_val = -15  # fallback
+            max_val = 15   # fallback
+        
+        # Color gradient renderer with dynamic scaling and lighter colors
+        color_cells = JsCode(f"""
+        function(params) {{
+            const minVal = {min_val};
+            const maxVal = {max_val};
+            if (params.value > 0) {{
+                let alpha = Math.min(params.value / maxVal, 1) * 0.5;  // Max alpha 0.5 for lighter color
+                return {{
                     'color': 'black',
-                    'backgroundColor': `rgba(34,197,94,${alpha})`
-                };
-            } else if (params.value < 0) {
-                let alpha = Math.min(Math.abs(params.value) / 15, 1).toFixed(2);
-                return {
+                    'backgroundColor': `rgba(34,197,94,${{alpha}})`
+                }};
+            }} else if (params.value < 0) {{
+                let alpha = Math.min(params.value / minVal, 1) * 0.5;  // Use minVal directly (negative)
+                return {{
                     'color': 'black',
-                    'backgroundColor': `rgba(239,68,68,${alpha})`
-                };
-            }
-            return {
+                    'backgroundColor': `rgba(239,68,68,${{alpha}})`
+                }};
+            }}
+            return {{
                 'color': 'black',
                 'backgroundColor': 'white'
-            };
-        }
+            }};
+        }}
+        """)
+        
+        # Calculate max/min values for STRENGTH columns (exclude totals row)
+        strength_cols = ['STRENGTH_ST', 'STRENGTH_LT']
+        strength_values = []
+        for col in strength_cols:
+            if col in display_df.columns:
+                # Exclude last row (totals) from gradient calculation
+                numeric_values = pd.to_numeric(display_df[col].iloc[:-1], errors='coerce').dropna()
+                strength_values.extend(numeric_values.tolist())
+        
+        if strength_values:
+            strength_min = min(strength_values)
+            strength_max = max(strength_values)
+        else:
+            strength_min = -50  # fallback
+            strength_max = 50   # fallback
+        
+        # Strength gradient renderer
+        strength_gradient_renderer = JsCode(f"""
+        class StrengthGradientRenderer {{
+            init(params) {{
+                this.eGui = document.createElement('div');
+                const value = params.value;
+                this.eGui.style.textAlign = 'center';
+                this.eGui.style.fontSize = '12px';
+                
+                const minVal = {strength_min};
+                const maxVal = {strength_max};
+                
+                if (value !== null && value !== undefined && value !== '') {{
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {{
+                        // Display as integer (no decimals)
+                        this.eGui.innerHTML = Math.round(numValue);
+                        
+                        // Apply gradient background
+                        if (numValue > 0) {{
+                            let alpha = Math.min(numValue / maxVal, 1) * 0.5;
+                            this.eGui.style.backgroundColor = `rgba(34,197,94,${{alpha}})`;
+                        }} else if (numValue < 0) {{
+                            let alpha = Math.min(numValue / minVal, 1) * 0.5;
+                            this.eGui.style.backgroundColor = `rgba(239,68,68,${{alpha}})`;
+                        }} else {{
+                            this.eGui.style.backgroundColor = 'white';
+                        }}
+                    }} else {{
+                        this.eGui.innerHTML = value;
+                        this.eGui.style.backgroundColor = 'white';
+                    }}
+                }} else {{
+                    this.eGui.innerHTML = '';
+                    this.eGui.style.color = '#6c757d';
+                    this.eGui.style.backgroundColor = 'white';
+                }}
+            }}
+            
+            getGui() {{
+                return this.eGui;
+            }}
+        }}
         """)
         
         # Close vs MA renderer with smaller font
@@ -499,16 +628,16 @@ try:
                 this.eGui.style.textAlign = 'center';
                 this.eGui.style.fontSize = '12px';
                 
-                if (value !== null && value !== undefined && value !== 'N/A') {
+                if (value !== null && value !== undefined && value !== '') {
                     const numValue = parseFloat(value);
                     if (!isNaN(numValue)) {
                         // Display as percentage with 1 decimal place
                         this.eGui.innerHTML = numValue.toFixed(1) + '%';
                     } else {
-                        this.eGui.innerHTML = 'N/A';
+                        this.eGui.innerHTML = '';
                     }
                 } else {
-                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.innerHTML = '';
                 }
             }
             
@@ -527,7 +656,7 @@ try:
                 this.eGui.style.textAlign = 'center';
                 this.eGui.style.fontSize = '12px';
                 
-                if (value !== null && value !== undefined && value !== 'N/A') {
+                if (value !== null && value !== undefined && value !== '') {
                     const numValue = parseFloat(value);
                     if (!isNaN(numValue)) {
                         // Display as integer (no decimals)
@@ -536,7 +665,7 @@ try:
                         this.eGui.innerHTML = value;
                     }
                 } else {
-                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.innerHTML = '';
                     this.eGui.style.color = '#6c757d';
                 }
             }
@@ -556,10 +685,10 @@ try:
                 this.eGui.style.textAlign = 'center';
                 this.eGui.style.fontSize = '12px';
                 
-                if (value !== null && value !== undefined && value !== 'N/A') {
+                if (value !== null && value !== undefined && value !== '') {
                     this.eGui.innerHTML = value;
                 } else {
-                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.innerHTML = '';
                     this.eGui.style.color = '#6c757d';
                 }
             }
@@ -579,10 +708,10 @@ try:
                 this.eGui.style.textAlign = 'right';
                 this.eGui.style.fontSize = '12px';
                 
-                if (value !== null && value !== undefined && value !== 'N/A') {
+                if (value !== null && value !== undefined && value !== '') {
                     this.eGui.innerHTML = value;
                 } else {
-                    this.eGui.innerHTML = 'N/A';
+                    this.eGui.innerHTML = '';
                     this.eGui.style.color = '#6c757d';
                 }
             }
@@ -599,11 +728,11 @@ try:
             init(params) {
                 this.eGui = document.createElement('div');
                 const value = params.value;
-                this.eGui.innerHTML = value || 'N/A';
+                this.eGui.innerHTML = value || '';
                 this.eGui.style.textAlign = 'center';
                 this.eGui.style.fontSize = '12px';
                 
-                if (!value || value === 'N/A') {
+                if (!value || value === '') {
                     this.eGui.style.color = '#6c757d';
                 }
             }
@@ -633,18 +762,150 @@ try:
                               cellRenderer=numeric_renderer,
                               type=["numericColumn", "rightAligned"])
         
-        # Strength columns without decimals, center aligned
-        if 'STRENGTH_ST' in display_df.columns:
-            gb.configure_column('STRENGTH_ST', cellRenderer=strength_renderer)
-        if 'STRENGTH_LT' in display_df.columns:
-            gb.configure_column('STRENGTH_LT', cellRenderer=strength_renderer)
+        # Create strength gradient style function
+        strength_color_cells = JsCode(f"""
+        function(params) {{
+            const minVal = {strength_min};
+            const maxVal = {strength_max};
+            const value = parseFloat(params.value);
+            
+            if (!isNaN(value)) {{
+                if (value > 0) {{
+                    let alpha = Math.min(value / maxVal, 1) * 0.5;
+                    return {{
+                        'color': 'black',
+                        'backgroundColor': `rgba(34,197,94,${{alpha}})`
+                    }};
+                }} else if (value < 0) {{
+                    let alpha = Math.min(value / minVal, 1) * 0.5;
+                    return {{
+                        'color': 'black',
+                        'backgroundColor': `rgba(239,68,68,${{alpha}})`
+                    }};
+                }}
+            }}
+            return {{
+                'color': 'black',
+                'backgroundColor': 'white'
+            }};
+        }}
+        """)
         
-        # Rating columns without colors (all 6 rating columns)
-        rating_cols = ['Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2', 
-                      'Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2']
-        for col in rating_cols:
+        # Calculate max/min values for Rating 1 columns (exclude totals row)
+        rating1_cols = ['Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2']
+        rating1_values = []
+        for col in rating1_cols:
             if col in display_df.columns:
-                gb.configure_column(col, cellRenderer=simple_renderer)
+                # Exclude last row (totals) from gradient calculation
+                numeric_values = pd.to_numeric(display_df[col].iloc[:-1], errors='coerce').dropna()
+                rating1_values.extend(numeric_values.tolist())
+        
+        if rating1_values:
+            rating1_min = min(rating1_values)
+            rating1_max = max(rating1_values)
+        else:
+            rating1_min = -10  # fallback
+            rating1_max = 10   # fallback
+        
+        # Calculate max/min values for Rating 2 columns (exclude totals row)
+        rating2_cols = ['Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2']
+        rating2_values = []
+        for col in rating2_cols:
+            if col in display_df.columns:
+                # Exclude last row (totals) from gradient calculation
+                numeric_values = pd.to_numeric(display_df[col].iloc[:-1], errors='coerce').dropna()
+                rating2_values.extend(numeric_values.tolist())
+        
+        if rating2_values:
+            rating2_min = min(rating2_values)
+            rating2_max = max(rating2_values)
+        else:
+            rating2_min = -10  # fallback
+            rating2_max = 10   # fallback
+        
+        # Rating 1 gradient style function
+        rating1_color_cells = JsCode(f"""
+        function(params) {{
+            const minVal = {rating1_min};
+            const maxVal = {rating1_max};
+            const value = parseFloat(params.value);
+            
+            if (!isNaN(value)) {{
+                if (value > 0) {{
+                    let alpha = Math.min(value / maxVal, 1) * 0.5;
+                    return {{
+                        'color': 'black',
+                        'backgroundColor': `rgba(34,197,94,${{alpha}})`
+                    }};
+                }} else if (value < 0) {{
+                    let alpha = Math.min(value / minVal, 1) * 0.5;
+                    return {{
+                        'color': 'black',
+                        'backgroundColor': `rgba(239,68,68,${{alpha}})`
+                    }};
+                }}
+            }}
+            return {{
+                'color': 'black',
+                'backgroundColor': 'white'
+            }};
+        }}
+        """)
+        
+        # Rating 2 gradient style function
+        rating2_color_cells = JsCode(f"""
+        function(params) {{
+            const minVal = {rating2_min};
+            const maxVal = {rating2_max};
+            const value = parseFloat(params.value);
+            
+            if (!isNaN(value)) {{
+                if (value > 0) {{
+                    let alpha = Math.min(value / maxVal, 1) * 0.5;
+                    return {{
+                        'color': 'black',
+                        'backgroundColor': `rgba(34,197,94,${{alpha}})`
+                    }};
+                }} else if (value < 0) {{
+                    let alpha = Math.min(value / minVal, 1) * 0.5;
+                    return {{
+                        'color': 'black',
+                        'backgroundColor': `rgba(239,68,68,${{alpha}})`
+                    }};
+                }}
+            }}
+            return {{
+                'color': 'black',
+                'backgroundColor': 'white'
+            }};
+        }}
+        """)
+        
+        # Strength columns with gradient background, center aligned
+        if 'STRENGTH_ST' in display_df.columns:
+            gb.configure_column('STRENGTH_ST', 
+                              cellStyle=strength_color_cells,
+                              cellRenderer=strength_renderer)
+        if 'STRENGTH_LT' in display_df.columns:
+            gb.configure_column('STRENGTH_LT', 
+                              cellStyle=strength_color_cells,
+                              cellRenderer=strength_renderer)
+        
+        # Rating 1 columns with gradient (3 columns)
+        rating1_cols = ['Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2']
+        for col in rating1_cols:
+            if col in display_df.columns:
+                gb.configure_column(col, 
+                                  cellStyle=rating1_color_cells,
+                                  cellRenderer=simple_renderer)
+        
+        # Rating 2 columns with gradient (3 columns)  
+        rating2_cols = ['Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2']
+        for col in rating2_cols:
+            if col in display_df.columns:
+                gb.configure_column(col, 
+                                  cellStyle=rating2_color_cells,
+                                  cellRenderer=simple_renderer)
         
         # MA50>MA200 column with colors
         if 'MA50_GT_MA200' in display_df.columns:
@@ -658,7 +919,7 @@ try:
                 const value = params.value;
                 this.eGui.style.textAlign = 'left';
                 this.eGui.style.fontSize = '12px';
-                this.eGui.innerHTML = value || 'N/A';
+                this.eGui.innerHTML = value || '';
             }
             
             getGui() {
@@ -668,48 +929,49 @@ try:
         """)
         
         # Configure optimized column widths with consistent font
-        gb.configure_column('Sector', width=60, headerName='Sector', cellRenderer=text_renderer, suppressMenu=True)
-        gb.configure_column('Ticker', width=70, headerName='Ticker', cellRenderer=text_renderer, suppressMenu=True)  # Removed pinned
-        gb.configure_column('Price', width=80, headerName='Price', suppressMenu=True)
-        gb.configure_column('% Change', width=85, headerName='% Change', suppressMenu=True)
+        gb.configure_column('Sector', width=61, headerName='Sector', cellRenderer=text_renderer, suppressMenu=True)
+        gb.configure_column('Ticker', width=60, headerName='Ticker', cellRenderer=text_renderer, suppressMenu=True, pinned='left')  # Pin to left
+        gb.configure_column('Price', width=60, headerName='Price', suppressMenu=True)
+        gb.configure_column('% Change', width=65, headerName='% Change', suppressMenu=True)
         
         # Close vs MA columns with shorter headers and compact width
-        gb.configure_column('Close_vs_MA5', width=75, headerName='vs MA5', suppressMenu=True)
-        gb.configure_column('Close_vs_MA10', width=75, headerName='vs MA10', suppressMenu=True)
-        gb.configure_column('Close_vs_MA20', width=75, headerName='vs MA20', suppressMenu=True)
-        gb.configure_column('Close_vs_MA50', width=75, headerName='vs MA50', suppressMenu=True)
-        gb.configure_column('Close_vs_MA200', width=75, headerName='vs MA200', suppressMenu=True)
+        gb.configure_column('Close_vs_MA5', width=60, headerName='vs\nMA5', suppressMenu=True)
+        gb.configure_column('Close_vs_MA10', width=60, headerName='vs\nMA10', suppressMenu=True)
+        gb.configure_column('Close_vs_MA20', width=60, headerName='vs\nMA20', suppressMenu=True)
+        gb.configure_column('Close_vs_MA50', width=60, headerName='vs\nMA50', suppressMenu=True)
+        gb.configure_column('Close_vs_MA200', width=60, headerName='vs\nMA200', suppressMenu=True)
         
         # Blank columns
-        gb.configure_column('　', width=20, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
-        gb.configure_column('　　', width=20, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
+        gb.configure_column('　', width=10, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
+        gb.configure_column('　　', width=10, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
+        gb.configure_column('　　　', width=10, headerName='', sortable=False, filter=False, suppressMenu=True, menuTabs=[])
         
-        gb.configure_column('STRENGTH_ST', width=80, headerName='ST\nStrength', suppressMenu=True)
-        gb.configure_column('STRENGTH_LT', width=80, headerName='LT\nStrength', suppressMenu=True)
+        gb.configure_column('STRENGTH_ST', width=65, headerName='ST\nStrength', suppressMenu=True)
+        gb.configure_column('STRENGTH_LT', width=65, headerName='LT\nStrength', suppressMenu=True)
         
-        # Rating columns with date headers
-        gb.configure_column('Rating_1_Current', width=70, headerName='R1\nToday', suppressMenu=True)
-        gb.configure_column('Rating_1_Prev1', width=70, headerName='R1\n-1d', suppressMenu=True)
-        gb.configure_column('Rating_1_Prev2', width=70, headerName='R1\n-2d', suppressMenu=True)
-        gb.configure_column('Rating_2_Current', width=70, headerName='R2\nToday', suppressMenu=True)
-        gb.configure_column('Rating_2_Prev1', width=70, headerName='R2\n-1d', suppressMenu=True)
-        gb.configure_column('Rating_2_Prev2', width=70, headerName='R2\n-2d', suppressMenu=True)
+        # Rating columns with new headers
+        gb.configure_column('Rating_1_Current', width=60, headerName='Rating1\nT', suppressMenu=True)
+        gb.configure_column('Rating_1_Prev1', width=60, headerName='Rating1\nT-1', suppressMenu=True)
+        gb.configure_column('Rating_1_Prev2', width=60, headerName='Rating1\nT-2', suppressMenu=True)
+        gb.configure_column('Rating_2_Current', width=60, headerName='Rating2\nT', suppressMenu=True)
+        gb.configure_column('Rating_2_Prev1', width=60, headerName='Rating2\nT-1', suppressMenu=True)
+        gb.configure_column('Rating_2_Prev2', width=60, headerName='Rating2\nT-2', suppressMenu=True)
         
         gb.configure_column('MA50_GT_MA200', width=85, headerName='MA50>\nMA200', suppressMenu=True)
         
         # Build grid options
         grid_options = gb.build()
         
-        # Display AG-Grid without scrolling
+        # Display AG-Grid with scrolling enabled
         AgGrid(
             display_df,
             gridOptions=grid_options,
             data_return_mode=DataReturnMode.AS_INPUT,
             update_mode=GridUpdateMode.MODEL_CHANGED,
-            fit_columns_on_grid_load=True,
+            fit_columns_on_grid_load=True,  # Enable to respect column width settings
             theme='balham',  # Modern light theme
             enable_enterprise_modules=False,
-            height=None,  # Auto height, no scrolling
+            height=900,  # Fixed height to enable scrolling
             width='100%',
             allow_unsafe_jscode=True  # Required for custom JsCode renderers
         )

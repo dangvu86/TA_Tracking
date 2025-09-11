@@ -3,6 +3,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 from typing import Optional
 from vnstock import Vnstock
+import time
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
@@ -24,14 +25,42 @@ def fetch_vnstock_data(ticker: str, days: int = 365) -> Optional[pd.DataFrame]:
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         
-        # Determine source based on ticker
+        # Determine source based on ticker with fallback
+        sources_to_try = []
         if ticker == 'VNMIDCAP':
-            source = 'VCI'  # VNMIDCAP only available on VCI
+            sources_to_try = ['VCI', 'TCBS']  # Try VCI first, fallback to TCBS
         else:
-            source = 'TCBS'  # VNINDEX and stocks use TCBS
+            sources_to_try = ['TCBS', 'VCI']  # Try TCBS first, fallback to VCI
         
-        stock_obj = vnstock.stock(symbol=ticker, source=source)
-        df = stock_obj.quote.history(start=start_date, end=end_date)
+        df = None
+        last_error = None
+        
+        for source in sources_to_try:
+            try:
+                stock_obj = vnstock.stock(symbol=ticker, source=source)
+                # Add timeout and retry for connection issues
+                max_retries = 2
+                for attempt in range(max_retries):
+                    try:
+                        df = stock_obj.quote.history(start=start_date, end=end_date)
+                        if df is not None and not df.empty:
+                            break  # Success, exit retry loop
+                    except Exception as retry_error:
+                        if attempt < max_retries - 1:
+                            time.sleep(1)  # Wait 1 second before retry
+                            continue
+                        else:
+                            raise retry_error
+                
+                if df is not None and not df.empty:
+                    break  # Success, exit source loop
+                    
+            except Exception as e:
+                last_error = e
+                continue  # Try next source
+        
+        if df is None or df.empty:
+            raise last_error if last_error else Exception("No data available")
         
         if df is not None and not df.empty:
             # Rename columns to match Yahoo Finance format
