@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import streamlit as st
 from .vnstock_fetcher import fetch_vnstock_data, is_vietnamese_symbol, format_ticker_for_vnstock
+from .google_sheets_simple import fetch_vnmidcap_from_sheets
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
@@ -21,8 +22,21 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
         DataFrame with OHLCV data or None if error
     """
     try:
-        # Check if should use vnstock for Vietnamese market
-        if is_vietnamese_symbol(ticker, exchange):
+        # Special handling for VNMIDCAP using Google Sheets ONLY
+        if ticker in ['VNMID', 'VNMIDCAP'] or (ticker == 'VNMID' and exchange == ''):
+            df = fetch_vnmidcap_from_sheets()
+            
+            if df is not None and not df.empty:
+                # Filter data up to the specified end_date
+                df = df[df['Date'].dt.date <= end_date.date()]
+                return df
+            else:
+                # Only use Google Sheets for VNMIDCAP - no fallback
+                st.error(f"Failed to fetch VNMIDCAP data from Google Sheets for {ticker}")
+                return None
+        
+        # Check if should use vnstock for Vietnamese market (excluding VNMIDCAP)
+        elif is_vietnamese_symbol(ticker, exchange):
             # Use vnstock for Vietnamese stocks and indices
             vnstock_ticker = format_ticker_for_vnstock(ticker)
             df = fetch_vnstock_data(vnstock_ticker, period_days)

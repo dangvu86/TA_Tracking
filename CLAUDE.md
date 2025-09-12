@@ -13,6 +13,9 @@ streamlit run main.py
 
 # Test vnstock integration
 python -c "from src.vnstock_fetcher import test_vnstock_connection; print(test_vnstock_connection())"
+
+# Test VNMIDCAP Google Sheets integration
+python -c "from src.google_sheets_simple import test_google_sheets_connection; print(test_google_sheets_connection())"
 ```
 
 ## Architecture Overview
@@ -22,14 +25,20 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 ### Core Data Flow Architecture
 
 1. **Data Source Router** (`src/data_fetcher.py`): 
-   - Routes Vietnamese symbols (stocks + VNINDEX/VNMIDCAP) → vnstock API
+   - Routes Vietnamese symbols (stocks + VNINDEX) → vnstock API
+   - Routes **VNMIDCAP exclusively** → Google Sheets API (no fallback)
    - Routes US symbols/indices → Yahoo Finance API
-   - Implements intelligent fallback between sources
+   - Implements intelligent fallback between sources (except VNMIDCAP)
 
-2. **Dual API Integration**:
+2. **Triple API Integration**:
    - **vnstock** (`src/vnstock_fetcher.py`): Vietnamese market data
      - TCBS source for stocks and VNINDEX
-     - VCI source specifically for VNMIDCAP
+     - VCI source with fallback to TCBS
+   - **Google Sheets** (`src/google_sheets_simple.py`): VNMIDCAP exclusive data source
+     - Direct CSV export from Google Sheets
+     - Vietnamese number format handling (2.492,45 → 2492.45)
+     - US date format parsing (mm/dd/yyyy)
+     - Column mapping: Date, %change(skip), Open, High, Low, Close, Volume
    - **Yahoo Finance**: US indices and fallback for Vietnamese stocks
 
 3. **Processing Pipeline**:
@@ -64,8 +73,17 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 
 **Exchange Handling**:
 - HOSE/HNX/UPCOM stocks use vnstock with `.VN` suffix fallback
-- Vietnamese indices (VNINDEX, VNMIDCAP) use vnstock exclusively
+- **VNINDEX** uses vnstock exclusively
+- **VNMIDCAP** uses Google Sheets exclusively (no vnstock fallback)
 - Exchange validation ensures proper data source selection
+
+**VNMIDCAP Google Sheets Integration**:
+- **Sheet ID**: `1Qscv4c7lCQtc8e2vCONe3Pj0_MyUq2cJ`
+- **Data Format**: Vietnamese numbers (dots as thousand separators, comma as decimal)
+- **Date Format**: US format (mm/dd/yyyy) 
+- **Column Structure**: Date, %Change, Open, High, Low, Close, Volume
+- **Data Quality**: 669+ rows, daily updates, chronologically sorted
+- **Error Handling**: No fallback - fails cleanly if Google Sheets unavailable
 
 ### Streamlit App Structure
 
@@ -185,10 +203,11 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 - **Performance**: Separate gradient calculations exclude totals row for accurate scaling
 
 ### Data Source Priorities
-1. vnstock for Vietnamese symbols (VNINDEX, VNMID, all VN stocks)
-2. Yahoo Finance for US indices (^GSPC, ^VIX)
-3. Intelligent fallback handling with user warnings
-4. `get_last_trading_date()` for smart date defaults
+1. **Google Sheets** for VNMIDCAP exclusively (no fallback)
+2. **vnstock** for Vietnamese symbols (VNINDEX, all VN stocks)
+3. **Yahoo Finance** for US indices (^GSPC, ^VIX) and VN stock fallback
+4. Intelligent fallback handling with user warnings (except VNMIDCAP)
+5. `get_last_trading_date()` for smart date defaults
 
 ### Caching Strategy
 - 5-minute TTL on all data fetching functions
@@ -196,9 +215,13 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 - Date sorting before calculations ensures consistency
 
 ### Vietnamese Market Integration
-- **VNMID mapping**: Automatically converts VNMID → VNMIDCAP for vnstock
-- **VCI source**: VNMIDCAP requires VCI source specifically with fallback to TCBS
-- **TCBS source**: VNINDEX and stocks use TCBS source with VCI fallback
+- **VNMID mapping**: Automatically converts VNMID → VNMIDCAP for routing to Google Sheets
+- **Google Sheets Integration**: VNMIDCAP fetched directly from Google Sheets with robust parsing
+  - Vietnamese number format conversion (2.492,45 → 2492.45)
+  - US date format parsing (mm/dd/yyyy → datetime)
+  - Column mapping and validation
+  - Automatic data quality checks and sorting
+- **vnstock Integration**: VNINDEX and stocks use TCBS source with VCI fallback
 - **Retry mechanism**: 2 attempts per source with 1-second delay for connection reliability
 - **Error prevention**: All CSV entries must have proper Sector values
 
