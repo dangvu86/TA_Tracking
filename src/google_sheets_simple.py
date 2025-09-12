@@ -17,7 +17,7 @@ def fetch_vnmidcap_from_sheets() -> Optional[pd.DataFrame]:
     """
     try:
         # Get data from Google Sheets
-        sheet_id = "1Qscv4c7lCQtc8e2vCONe3Pj0_MyUq2cJ"
+        sheet_id = "1qFdCXl31lHg8LivJepcTNetzrCBEffFE"
         csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         
         response = requests.get(csv_url, timeout=10)
