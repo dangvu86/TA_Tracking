@@ -267,12 +267,139 @@ try:
     # Display results only if data exists
     if 'analysis_results' in st.session_state and st.session_state.analysis_results is not None:
         df_results = st.session_state.analysis_results
-        
+
         if df_results.empty:
             st.error("No data available for the selected date.")
             st.stop()
-        
-       
+
+        # === SECTOR SUMMARY TABLE ===
+        try:
+            from src.utils.sector_analysis import analyze_sectors, create_sector_summary_table
+
+            # Create sector summary
+            sector_summary = analyze_sectors(df_results)
+
+            if sector_summary:
+                st.markdown("### 📊 Sector Summary")
+
+                sector_df = create_sector_summary_table(sector_summary, df_results)
+
+                if not sector_df.empty:
+                    # Configure sector summary table
+                    sector_gb = GridOptionsBuilder.from_dataframe(sector_df)
+
+                    # Basic grid configuration
+                    sector_gb.configure_pagination(enabled=False)
+                    sector_gb.configure_grid_options(
+                        suppressRowClickSelection=True,
+                        suppressColumnMoveAnimation=False,
+                        headerHeight=32,
+                        rowHeight=40,  # Taller rows to accommodate multi-line content
+                        suppressMenuHide=True,
+                        suppressHeaderMenuButton=True,
+                        suppressHeaderFilterButton=True,
+                        defaultColDef={
+                            'sortable': False,
+                            'filter': False,
+                            'resizable': True,
+                            'suppressMenu': True,
+                            'wrapText': True,
+                            'autoHeight': True,
+                        }
+                    )
+
+                    # Custom cell renderer for sector summary with word wrap
+                    sector_cell_renderer = JsCode("""
+                    class SectorCellRenderer {
+                        init(params) {
+                            this.eGui = document.createElement('div');
+                            const value = params.value || '';
+                            this.eGui.style.fontSize = '11px';
+                            this.eGui.style.padding = '4px';
+                            this.eGui.style.whiteSpace = 'pre-wrap';
+                            this.eGui.style.wordWrap = 'break-word';
+                            this.eGui.style.lineHeight = '1.3';
+                            this.eGui.innerHTML = value;
+
+                            if (params.colDef.field === 'Sector') {
+                                this.eGui.style.fontWeight = 'bold';
+                                this.eGui.style.textAlign = 'left';
+                            } else {
+                                this.eGui.style.textAlign = 'left';
+                            }
+                        }
+
+                        getGui() {
+                            return this.eGui;
+                        }
+                    }
+                    """)
+
+                    # Configure column widths and renderers
+                    sector_gb.configure_column('Sector', width=150, headerName='Sector', cellRenderer=sector_cell_renderer)
+
+                    # Configure sector columns
+                    for col in sector_df.columns:
+                        if col != 'Sector':
+                            sector_gb.configure_column(col, width=250, headerName=col, cellRenderer=sector_cell_renderer)
+
+                    # Custom CSS for sector summary table
+                    st.markdown("""
+                    <style>
+                    /* Sector summary table styling */
+                    .ag-theme-balham .ag-header-cell-text {
+                        font-size: 12px !important;
+                        font-weight: bold !important;
+                        text-align: center !important;
+                    }
+
+                    .ag-theme-balham .ag-cell {
+                        font-size: 11px !important;
+                        line-height: 1.3 !important;
+                    }
+
+                    /* Light background for sector table */
+                    .sector-summary .ag-row {
+                        background-color: #f8f9fa !important;
+                    }
+
+                    .sector-summary .ag-row:nth-child(even) {
+                        background-color: #e9ecef !important;
+                    }
+
+                    .sector-summary .ag-row-hover {
+                        background-color: #dee2e6 !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    # Display sector summary table
+                    sector_grid_options = sector_gb.build()
+
+                    AgGrid(
+                        sector_df,
+                        gridOptions=sector_grid_options,
+                        data_return_mode=DataReturnMode.AS_INPUT,
+                        update_mode=GridUpdateMode.NO_UPDATE,
+                        theme='balham',
+                        enable_enterprise_modules=False,
+                        height=250,  # Compact height
+                        width='100%',
+                        allow_unsafe_jscode=True,
+                        custom_css={
+                            ".ag-theme-balham": {
+                                "font-size": "11px"
+                            }
+                        },
+                        key='sector_summary_grid'  # Unique key to avoid conflicts
+                    )
+
+               
+
+        except Exception as e:
+            st.warning(f"Error creating sector summary: {str(e)}")
+
+
         
         # Define only the columns to display as requested
         requested_cols = ['Sector', 'Ticker', 'Price', '% Change', 'Close_vs_MA5', 'Close_vs_MA10', 

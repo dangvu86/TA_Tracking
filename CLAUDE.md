@@ -87,7 +87,12 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 
 ### Streamlit App Structure
 
-**Main Page** (`main.py`): 
+**Main Page** (`main.py`):
+- **Sector Summary Table**: Overview table showing top 3 stocks per sector by Rating1 and Rating Change
+  - Top 3 highest/lowest Rating1 stocks per sector
+  - Top 3 highest/lowest Rating Change (T - T-1) stocks per sector
+  - Compact 4-row display with sector columns in data order
+  - Light styling to distinguish from main table
 - **AG-Grid Modern Table** with Balham light theme and fixed headers
 - **Smart Refresh System**: Manual data loading with status indicators
 - **Historical Rating System**: Shows 3-day rating history (T, T-1, T-2)
@@ -224,6 +229,16 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 - **vnstock Integration**: VNINDEX and stocks use TCBS source with VCI fallback
 - **Retry mechanism**: 2 attempts per source with 1-second delay for connection reliability
 - **Error prevention**: All CSV entries must have proper Sector values
+
+### Sector Analysis System
+
+**Sector Summary Implementation** (`src/utils/sector_analysis.py`):
+- Groups stocks by sector (excluding Index entries)
+- Calculates top 3 highest/lowest Rating1 per sector
+- Calculates top 3 Rating Change (T - T-1) increases/decreases per sector
+- Formats results as "TICKER (value)" strings for display
+- Maintains sector order from main data table (not alphabetical)
+- Generates compact 4-row summary table for each sector
 
 ### Error Handling Patterns
 - Duplicate column prevention in dataframe construction
