@@ -274,130 +274,154 @@ try:
 
         # === SECTOR SUMMARY TABLE ===
         try:
-            from src.utils.sector_analysis import analyze_sectors, create_sector_summary_table
+            from src.utils.sector_analysis import analyze_sectors_new, create_sector_dataframe
 
-            # Create sector summary
-            sector_summary = analyze_sectors(df_results)
-
-            if sector_summary:
+            # Create new sector analysis with Vietnamese names and variable counts
+            sector_analysis = analyze_sectors_new(df_results)
+            if sector_analysis:
                 st.markdown("### 📊 Sector Summary")
 
-                sector_df = create_sector_summary_table(sector_summary, df_results)
+                # Create DataFrame for display
+                sector_df = create_sector_dataframe(sector_analysis)
 
                 if not sector_df.empty:
-                    # Configure sector summary table
-                    sector_gb = GridOptionsBuilder.from_dataframe(sector_df)
+                    # Keep breakthrough rows simple - just empty the 3rd column
+                    display_df = sector_df.copy()
+                    breakthrough_mask = display_df['Rating'].str.contains('Nhóm', na=False)
+                    display_df.loc[breakthrough_mask, 'Top thấp điểm'] = ''
 
-                    # Basic grid configuration
-                    sector_gb.configure_pagination(enabled=False)
-                    sector_gb.configure_grid_options(
-                        suppressRowClickSelection=True,
-                        suppressColumnMoveAnimation=False,
-                        headerHeight=32,
-                        rowHeight=40,  # Taller rows to accommodate multi-line content
-                        suppressMenuHide=True,
-                        suppressHeaderMenuButton=True,
-                        suppressHeaderFilterButton=True,
-                        defaultColDef={
-                            'sortable': False,
-                            'filter': False,
-                            'resizable': True,
-                            'suppressMenu': True,
-                            'wrapText': True,
-                            'autoHeight': True,
-                        }
-                    )
-
-                    # Custom cell renderer for sector summary with word wrap
-                    sector_cell_renderer = JsCode("""
-                    class SectorCellRenderer {
-                        init(params) {
-                            this.eGui = document.createElement('div');
-                            const value = params.value || '';
-                            this.eGui.style.fontSize = '11px';
-                            this.eGui.style.padding = '4px';
-                            this.eGui.style.whiteSpace = 'pre-wrap';
-                            this.eGui.style.wordWrap = 'break-word';
-                            this.eGui.style.lineHeight = '1.3';
-                            this.eGui.innerHTML = value;
-
-                            if (params.colDef.field === 'Sector') {
-                                this.eGui.style.fontWeight = 'bold';
-                                this.eGui.style.textAlign = 'left';
-                            } else {
-                                this.eGui.style.textAlign = 'left';
-                            }
-                        }
-
-                        getGui() {
-                            return this.eGui;
-                        }
-                    }
-                    """)
-
-                    # Configure column widths and renderers
-                    sector_gb.configure_column('Sector', width=150, headerName='Sector', cellRenderer=sector_cell_renderer)
-
-                    # Configure sector columns
-                    for col in sector_df.columns:
-                        if col != 'Sector':
-                            sector_gb.configure_column(col, width=250, headerName=col, cellRenderer=sector_cell_renderer)
-
-                    # Custom CSS for sector summary table
+                    # Add custom CSS to handle overflow
                     st.markdown("""
                     <style>
-                    /* Sector summary table styling */
-                    .ag-theme-balham .ag-header-cell-text {
-                        font-size: 12px !important;
-                        font-weight: bold !important;
-                        text-align: center !important;
+                    /* Target the dataframe container */
+                    div[data-testid="stDataFrame"] > div {
+                        overflow: visible !important;
                     }
-
-                    .ag-theme-balham .ag-cell {
-                        font-size: 11px !important;
-                        line-height: 1.3 !important;
+                    
+                    /* Make table allow overflow */
+                    div[data-testid="stDataFrame"] table {
+                        table-layout: fixed !important;
+                        width: 100% !important;
                     }
-
-                    /* Light background for sector table */
-                    .sector-summary .ag-row {
-                        background-color: #f8f9fa !important;
+                    
+                    /* For breakthrough rows (containing "Nhóm") */
+                    div[data-testid="stDataFrame"] tbody tr {
+                        position: relative;
                     }
-
-                    .sector-summary .ag-row:nth-child(even) {
-                        background-color: #e9ecef !important;
+                    
+                    /* Allow second column to overflow into third column for breakthrough rows */
+                    div[data-testid="stDataFrame"] tbody tr td:nth-child(2) {
+                        position: relative;
+                        z-index: 10;
+                        overflow: visible !important;
+                        white-space: nowrap !important;
+                        max-width: none !important;
                     }
-
-                    .sector-summary .ag-row-hover {
-                        background-color: #dee2e6 !important;
+                    
+                    /* Special handling for cells in rows containing "Nhóm" */
+                    div[data-testid="stDataFrame"] tbody tr:has(td:contains("Nhóm")) td:nth-child(2) {
+                        position: absolute !important;
+                        left: auto !important;
+                        overflow: visible !important;
+                        white-space: nowrap !important;
+                        background: white !important;
+                        z-index: 100 !important;
+                        padding-right: 20px !important;
+                        width: auto !important;
+                        max-width: none !important;
+                        display: block !important;
+                    }
+                    
+                    /* Hide the third column for breakthrough rows */
+                    div[data-testid="stDataFrame"] tbody tr:has(td:contains("Nhóm")) td:nth-child(3) {
+                        visibility: hidden !important;
+                        position: relative !important;
+                        z-index: 1 !important;
                     }
                     </style>
                     """, unsafe_allow_html=True)
 
-                    # Display sector summary table
-                    sector_grid_options = sector_gb.build()
+                    # Style function for the dataframe
+                    def style_combined_table(row):
+                        is_breakthrough = 'Nhóm' in str(row['Rating'])
+                        
+                        if is_breakthrough:
+                            # Breakthrough rows - allow overflow
+                            return [
+                                'text-align: left; font-style: italic',  # Rating
+                                '''text-align: left; font-style: italic; 
+                                white-space: nowrap !important; 
+                                overflow: visible !important;
+                                position: relative;
+                                z-index: 10;
+                                max-width: none !important;
+                                width: auto !important;
+                                min-width: 100% !important;''',  # Top cao điểm - overflow enabled
+                                'visibility: hidden'  # Top thấp điểm - hidden
+                            ]
+                        else:
+                            # Normal sector rows
+                            return [
+                                'text-align: center',  # Rating
+                                'text-align: center; background-color: #e8f5e8; position: relative; z-index: 1',  # Top cao điểm (green)
+                                'text-align: center; background-color: #ffe8e8; position: relative; z-index: 1'   # Top thấp điểm (red)
+                            ]
 
-                    AgGrid(
-                        sector_df,
-                        gridOptions=sector_grid_options,
-                        data_return_mode=DataReturnMode.AS_INPUT,
-                        update_mode=GridUpdateMode.NO_UPDATE,
-                        theme='balham',
-                        enable_enterprise_modules=False,
-                        height=250,  # Compact height
-                        width='100%',
-                        allow_unsafe_jscode=True,
-                        custom_css={
-                            ".ag-theme-balham": {
-                                "font-size": "11px"
-                            }
-                        },
-                        key='sector_summary_grid'  # Unique key to avoid conflicts
-                    )
-
-               
+                    # Create styled dataframe
+                    styled_df = display_df.style.apply(style_combined_table, axis=1)
+                    
+                    # Additional table styles to allow overflow
+                    styled_df = styled_df.set_table_styles([
+                        {'selector': 'table', 
+                        'props': [('table-layout', 'fixed'), 
+                                ('width', '100%'),
+                                ('overflow', 'visible')]},
+                        {'selector': 'td', 
+                        'props': [('overflow', 'visible')]},
+                        {'selector': 'td:nth-child(2)', 
+                        'props': [('overflow', 'visible'),
+                                ('position', 'relative')]},
+                    ])
+                    
+                    
+                    
+                    # Create HTML table manually for better control
+                    html_table = "<table style='width: 100%; table-layout: fixed; border-collapse: collapse;'>"
+                    html_table += "<thead><tr>"
+                    for col in display_df.columns:
+                        html_table += f"<th style='border: 1px solid #ddd; padding: 6px; font-size: 16px; text-align: center; background-color: #f2f2f2;'>{col}</th>"
+                    html_table += "</tr></thead><tbody>"
+                    
+                    for idx, row in display_df.iterrows():
+                        is_breakthrough = 'Nhóm' in str(row['Rating'])
+                        html_table += "<tr>"
+                        
+                        # Rating column
+                        style_rating = "font-style: italic;" if is_breakthrough else ""
+                        html_table += f"<td style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px; text-align: center; {style_rating}'>{row['Rating']}</td>"
+                        
+                        # Top cao điểm column
+                        if is_breakthrough:
+                            # For breakthrough rows - span across columns with no wrap
+                            html_table += f"""<td colspan='2' style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px;
+                                            font-style: italic; white-space: nowrap; overflow: visible;
+                                            position: relative; z-index: 10;'>{row['Top cao điểm']}</td>"""
+                        else:
+                            # Normal rows
+                            html_table += f"<td style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px; text-align: center; background-color: #e8f5e8;'>{row['Top cao điểm']}</td>"
+                            html_table += f"<td style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px; text-align: center; background-color: #ffe8e8;'>{row['Top thấp điểm']}</td>"
+                        
+                        html_table += "</tr>"
+                    
+                    html_table += "</tbody></table>"
+                    
+                    # Display HTML table
+                    st.markdown(html_table, unsafe_allow_html=True)
+                    
+                    
 
         except Exception as e:
-            st.warning(f"Error creating sector summary: {str(e)}")
+            st.error(f"Error creating sector summary: {str(e)}")
 
 
         

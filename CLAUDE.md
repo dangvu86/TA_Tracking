@@ -88,11 +88,11 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 ### Streamlit App Structure
 
 **Main Page** (`main.py`):
-- **Sector Summary Table**: Overview table showing top 3 stocks per sector by Rating1 and Rating Change
-  - Top 3 highest/lowest Rating1 stocks per sector
-  - Top 3 highest/lowest Rating Change (T - T-1) stocks per sector
-  - Compact 4-row display with sector columns in data order
-  - Light styling to distinguish from main table
+- **New Sector Summary Table**: Modern HTML table with Vietnamese sector names
+  - Variable top/bottom counts per sector (1-3 stocks depending on sector size)
+  - Green/red background colors for Top cao điểm/Top thấp điểm columns
+  - Breakthrough groups (±10 rating points) displayed with merged columns
+  - Single table appearance with overflow handling for long text
 - **AG-Grid Modern Table** with Balham light theme and fixed headers
 - **Smart Refresh System**: Manual data loading with status indicators
 - **Historical Rating System**: Shows 3-day rating history (T, T-1, T-2)
@@ -232,13 +232,35 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 
 ### Sector Analysis System
 
-**Sector Summary Implementation** (`src/utils/sector_analysis.py`):
-- Groups stocks by sector (excluding Index entries)
-- Calculates top 3 highest/lowest Rating1 per sector
-- Calculates top 3 Rating Change (T - T-1) increases/decreases per sector
-- Formats results as "TICKER (value)" strings for display
-- Maintains sector order from main data table (not alphabetical)
-- Generates compact 4-row summary table for each sector
+**New Sector Summary Implementation** (`src/utils/sector_analysis.py`):
+- **Vietnamese Sector Names**: Maps English codes to Vietnamese display names
+  - CK → Chứng khoán, BDS → Bất động sản, DTC/XD → Xây dựng & DTC
+  - VLXD → VLXD, DAU → Dầu, HK → Hàng không
+  - AGRI → Agri, XK → Xuất khẩu, NH → Ngân hàng, FAV → FAV
+- **Variable Counts per Sector**: Different top/bottom counts based on sector size
+  - Major sectors (CK, BDS, NH, FAV): top 3, bottom 3
+  - Medium sectors (DTC, VLXD, XK): top 2, bottom 1-2
+  - Small sectors (DAU, HK, AGRI): top 1, bottom 1
+- **Breakthrough Detection**: Identifies stocks with Rating Change ≥ ±10 points
+  - Format: "TICKER (prev_rating -> current_rating)"
+  - Displayed in separate breakthrough groups below main sectors
+- **Single Table Display**:
+  - Main sectors: 3 columns (Rating | Top cao điểm | Top thấp điểm) with green/red colors
+  - Breakthrough groups: HTML table with colspan for merged appearance
+  - No scroll, text overflow handling for long stock lists
+
+### Functions Available
+
+**Core Functions**:
+- `analyze_sectors_new(df_results)`: New sector analysis with Vietnamese names and variable counts
+- `create_sector_dataframe(sector_analysis)`: Creates DataFrame for display
+- `create_sector_html_table(sector_analysis)`: Creates HTML table with merged cells (fallback)
+
+**Key Features**:
+- Automatic sector mapping from English to Vietnamese
+- Breakthrough detection with ±10 rating threshold
+- Smart text overflow handling for long stock lists
+- Single table display with conditional styling
 
 ### Error Handling Patterns
 - Duplicate column prevention in dataframe construction
