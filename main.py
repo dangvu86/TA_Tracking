@@ -275,6 +275,7 @@ try:
         # === SECTOR SUMMARY TABLE ===
         try:
             from src.utils.sector_analysis import analyze_sectors_new, create_sector_dataframe
+            import streamlit.components.v1 as components
 
             # Create new sector analysis with Vietnamese names and variable counts
             sector_analysis = analyze_sectors_new(df_results)
@@ -290,136 +291,104 @@ try:
                     breakthrough_mask = display_df['Rating'].str.contains('Nhóm', na=False)
                     display_df.loc[breakthrough_mask, 'Top thấp điểm'] = ''
 
-                    # Add custom CSS to handle overflow
-                    st.markdown("""
-                    <style>
-                    /* Target the dataframe container */
-                    div[data-testid="stDataFrame"] > div {
-                        overflow: visible !important;
-                    }
+                    # Create complete HTML document with embedded styles
+                    html_content = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 6px;
+                                background-color: white;
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                background-color: white;
+                            }
+                            th {
+                                border: 1px solid #ddd;
+                                padding: 6px;
+                                font-size: 16px;
+                                text-align: center;
+                                background-color: #f2f2f2;
+                                color: #000000;
+                                font-weight: bold;
+                            }
+                            td {
+                                border: 0.8px solid #ddd;
+                                padding: 5px;
+                                font-size: 15px;
+                                text-align: center;
+                                background-color: white;
+                                color: #000000;
+                            }
+                            .text-green {
+                                color: #198754;
+                                font-weight: 400;
+                            }
+                            .text-red {
+                                color: #dc3545;
+                                font-weight: 400;
+                            }
+                            .text-italic {
+                                font-style: italic;
+                                color: #333333;
+                            }
+                            .text-breakthrough {
+                                color: #333333;
+                                font-style: italic;
+                                text-align: left;
+                                white-space: nowrap;
+                                overflow: visible;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <table>
+                            <thead>
+                                <tr>
+                    """
                     
-                    /* Make table allow overflow */
-                    div[data-testid="stDataFrame"] table {
-                        table-layout: fixed !important;
-                        width: 100% !important;
-                    }
-                    
-                    /* For breakthrough rows (containing "Nhóm") */
-                    div[data-testid="stDataFrame"] tbody tr {
-                        position: relative;
-                    }
-                    
-                    /* Allow second column to overflow into third column for breakthrough rows */
-                    div[data-testid="stDataFrame"] tbody tr td:nth-child(2) {
-                        position: relative;
-                        z-index: 10;
-                        overflow: visible !important;
-                        white-space: nowrap !important;
-                        max-width: none !important;
-                    }
-                    
-                    /* Special handling for cells in rows containing "Nhóm" */
-                    div[data-testid="stDataFrame"] tbody tr:has(td:contains("Nhóm")) td:nth-child(2) {
-                        position: absolute !important;
-                        left: auto !important;
-                        overflow: visible !important;
-                        white-space: nowrap !important;
-                        background: white !important;
-                        z-index: 100 !important;
-                        padding-right: 20px !important;
-                        width: auto !important;
-                        max-width: none !important;
-                        display: block !important;
-                    }
-                    
-                    /* Hide the third column for breakthrough rows */
-                    div[data-testid="stDataFrame"] tbody tr:has(td:contains("Nhóm")) td:nth-child(3) {
-                        visibility: hidden !important;
-                        position: relative !important;
-                        z-index: 1 !important;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-
-                    # Style function for the dataframe
-                    def style_combined_table(row):
-                        is_breakthrough = 'Nhóm' in str(row['Rating'])
-                        
-                        if is_breakthrough:
-                            # Breakthrough rows - allow overflow
-                            return [
-                                'text-align: left; font-style: italic',  # Rating
-                                '''text-align: left; font-style: italic; 
-                                white-space: nowrap !important; 
-                                overflow: visible !important;
-                                position: relative;
-                                z-index: 10;
-                                max-width: none !important;
-                                width: auto !important;
-                                min-width: 100% !important;''',  # Top cao điểm - overflow enabled
-                                'visibility: hidden'  # Top thấp điểm - hidden
-                            ]
-                        else:
-                            # Normal sector rows
-                            return [
-                                'text-align: center',  # Rating
-                                'text-align: center; background-color: #e8f5e8; position: relative; z-index: 1',  # Top cao điểm (green)
-                                'text-align: center; background-color: #ffe8e8; position: relative; z-index: 1'   # Top thấp điểm (red)
-                            ]
-
-                    # Create styled dataframe
-                    styled_df = display_df.style.apply(style_combined_table, axis=1)
-                    
-                    # Additional table styles to allow overflow
-                    styled_df = styled_df.set_table_styles([
-                        {'selector': 'table', 
-                        'props': [('table-layout', 'fixed'), 
-                                ('width', '100%'),
-                                ('overflow', 'visible')]},
-                        {'selector': 'td', 
-                        'props': [('overflow', 'visible')]},
-                        {'selector': 'td:nth-child(2)', 
-                        'props': [('overflow', 'visible'),
-                                ('position', 'relative')]},
-                    ])
-                    
-                    
-                    
-                    # Create HTML table manually for better control
-                    html_table = "<table style='width: 100%; table-layout: fixed; border-collapse: collapse;'>"
-                    html_table += "<thead><tr>"
+                    # Add headers
                     for col in display_df.columns:
-                        html_table += f"<th style='border: 1px solid #ddd; padding: 6px; font-size: 16px; text-align: center; background-color: #f2f2f2;'>{col}</th>"
-                    html_table += "</tr></thead><tbody>"
+                        html_content += f"<th>{col}</th>"
+                    html_content += "</tr></thead><tbody>"
                     
+                    # Add rows
                     for idx, row in display_df.iterrows():
                         is_breakthrough = 'Nhóm' in str(row['Rating'])
-                        html_table += "<tr>"
+                        html_content += "<tr>"
                         
                         # Rating column
-                        style_rating = "font-style: italic;" if is_breakthrough else ""
-                        html_table += f"<td style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px; text-align: center; {style_rating}'>{row['Rating']}</td>"
-                        
-                        # Top cao điểm column
                         if is_breakthrough:
-                            # For breakthrough rows - span across columns with no wrap
-                            html_table += f"""<td colspan='2' style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px;
-                                            font-style: italic; white-space: nowrap; overflow: visible;
-                                            position: relative; z-index: 10;'>{row['Top cao điểm']}</td>"""
+                            html_content += f'<td class="text-italic">{row["Rating"]}</td>'
                         else:
-                            # Normal rows
-                            html_table += f"<td style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px; text-align: center; background-color: #e8f5e8;'>{row['Top cao điểm']}</td>"
-                            html_table += f"<td style='border: 0.8px solid #ddd; padding: 5px; font-size: 16px; text-align: center; background-color: #ffe8e8;'>{row['Top thấp điểm']}</td>"
+                            html_content += f'<td>{row["Rating"]}</td>'
                         
-                        html_table += "</tr>"
+                        # Top cao điểm and Top thấp điểm columns
+                        if is_breakthrough:
+                            html_content += f'<td colspan="2" class="text-breakthrough">{row["Top cao điểm"]}</td>'
+                        else:
+                            html_content += f'<td class="text-green">{row["Top cao điểm"]}</td>'
+                            html_content += f'<td class="text-red">{row["Top thấp điểm"]}</td>'
+                        
+                        html_content += "</tr>"
                     
-                    html_table += "</tbody></table>"
+                    html_content += """
+                            </tbody>
+                        </table>
+                    </body>
+                    </html>
+                    """
                     
-                    # Display HTML table
-                    st.markdown(html_table, unsafe_allow_html=True)
-                    
-                    
+                    # Use streamlit components to render isolated HTML
+                    components.html(html_content, height=350, scrolling=False)
 
+        except ImportError:
+            st.error("Please install streamlit.components to display the table properly in dark theme")
         except Exception as e:
             st.error(f"Error creating sector summary: {str(e)}")
 

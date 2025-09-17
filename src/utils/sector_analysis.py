@@ -5,12 +5,12 @@ import numpy as np
 SECTOR_MAPPING = {
     'CK': 'Chứng khoán',
     'BDS': 'Bất động sản',
-    'DTC': 'Xây dựng & DTC',
-    'XD': 'Xây dựng & DTC',  # XD also maps to the same Vietnamese name
-    'VLXD': 'VLXD',
-    'DAU': 'Dầu',
-    'HK': 'Hàng không',
-    'AGRI': 'Agri',
+    'DTC': 'Xây dựng & ĐTC, VLXD',
+    'XD': 'Xây dựng & ĐTC, VLXD',
+    'VLXD': 'Xây dựng & ĐTC, VLXD',
+    'DAU': 'Dầu, Hàng không, Agri',
+    'HK': 'Dầu, Hàng không, Agri',
+    'AGRI': 'Dầu, Hàng không, Agri',
     'XK': 'Xuất khẩu',
     'NH': 'Ngân hàng',
     'FAV': 'FAV'
@@ -20,11 +20,8 @@ SECTOR_MAPPING = {
 SECTOR_COUNTS = {
     'Chứng khoán': {'top': 3, 'bottom': 3},
     'Bất động sản': {'top': 3, 'bottom': 3},
-    'Xây dựng & DTC': {'top': 2, 'bottom': 1},
-    'VLXD': {'top': 2, 'bottom': 2},
-    'Dầu': {'top': 1, 'bottom': 1},
-    'Hàng không': {'top': 2, 'bottom': 1},
-    'Agri': {'top': 1, 'bottom': 1},
+    'Xây dựng & ĐTC, VLXD': {'top': 3, 'bottom': 3},
+    'Dầu, Hàng không, Agri': {'top': 3, 'bottom': 3},
     'Xuất khẩu': {'top': 2, 'bottom': 2},
     'Ngân hàng': {'top': 3, 'bottom': 3},
     'FAV': {'top': 3, 'bottom': 3}
@@ -150,8 +147,8 @@ def create_sector_dataframe(sector_analysis):
 
     # Define sector order as shown in the image
     sector_order = [
-        'Chứng khoán', 'Bất động sản', 'Xây dựng & DTC', 'VLXD', 'Dầu',
-        'Hàng không', 'Agri', 'Xuất khẩu', 'Ngân hàng', 'FAV'
+        'Chứng khoán', 'Bất động sản', 'Xây dựng & ĐTC, VLXD', 'Dầu, Hàng không, Agri',
+        'Xuất khẩu', 'Ngân hàng', 'FAV'
     ]
 
     rows = []
@@ -199,22 +196,9 @@ def create_sector_html_table(sector_analysis):
 
     # Define sector order as shown in the image
     sector_order = [
-        'Chứng khoán', 'Bất động sản', 'Xây dựng & DTC', 'VLXD', 'Dầu',
-        'Hàng không', 'Agri', 'Xuất khẩu', 'Ngân hàng', 'FAV'
+        'Chứng khoán', 'Bất động sản', 'Xây dựng & ĐTC, VLXD', 'Dầu, Hàng không, Agri',
+        'Xuất khẩu', 'Ngân hàng', 'FAV'
     ]
-
-    html = f"""
-    <div style="margin: 10px 0;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <thead>
-                <tr style="background-color: #f5f5f5;">
-                    <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold; font-size: 10px; width: 15%;">Sector</th>
-                    <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold; font-size: 10px; width: 42.5%;">Top cao điểm</th>
-                    <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold; font-size: 10px; width: 42.5%;">Top thấp điểm</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
 
     # Add rows for each sector
     sectors = sector_analysis['sectors']
@@ -222,22 +206,22 @@ def create_sector_html_table(sector_analysis):
         if sector_vn in sectors:
             sector_data = sectors[sector_vn]
             html += f"""
-                <tr>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle;">{sector_vn}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; background-color: #e8f5e8;">{sector_data['top_rating']}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; background-color: #ffe8e8;">{sector_data['bottom_rating']}</td>
+                <tr style="background-color: white ;">
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; ">{sector_vn}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #008000 !important; ">{sector_data['top_rating']}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #ff0000 !important; ">{sector_data['bottom_rating']}</td>
                 </tr>
             """
 
     # Add breakthrough groups with merged cells
     html += f"""
-                <tr style="background-color: #f9f9f9; font-style: italic;">
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle;">Nhóm đột phá</td>
-                    <td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle;">{sector_analysis['breakthrough_up']}</td>
+                <tr style="font-style: italic; ">
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; ">Nhóm đột phá</td>
+                    <td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #008000 !important; font-weight: bold; ">{sector_analysis['breakthrough_up']}</td>
                 </tr>
-                <tr style="background-color: #f9f9f9; font-style: italic;">
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle;">Nhóm giảm điểm</td>
-                    <td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle;">{sector_analysis['breakthrough_down']}</td>
+                <tr style="font-style: italic; ">
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; ">Nhóm giảm điểm</td>
+                    <td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #ff0000 !important; font-weight: bold; ">{sector_analysis['breakthrough_down']}</td>
                 </tr>
             </tbody>
         </table>
