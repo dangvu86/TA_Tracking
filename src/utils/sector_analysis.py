@@ -71,23 +71,33 @@ def analyze_sectors_new(df_results):
         bottom_count = counts['bottom']
 
         top_rating = sector_stocks.nlargest(top_count, 'Rating_1_Current')[['Ticker', 'Rating_1_Current']]
-        top_rating_str = ', '.join([
-            f"{row['Ticker']} ({int(row['Rating_1_Current'])})"
-            for _, row in top_rating.iterrows()
-            if not pd.isna(row['Rating_1_Current'])
-        ])
+        top_rating_data = []
+        for _, row in top_rating.iterrows():
+            if not pd.isna(row['Rating_1_Current']):
+                rating_val = int(row['Rating_1_Current'])
+                color = 'green' if rating_val > 0 else 'red' if rating_val < 0 else 'black'
+                top_rating_data.append({
+                    'ticker': row['Ticker'],
+                    'rating': rating_val,
+                    'color': color
+                })
 
         # Get bottom performers by Rating1
         bottom_rating = sector_stocks.nsmallest(bottom_count, 'Rating_1_Current')[['Ticker', 'Rating_1_Current']]
-        bottom_rating_str = ', '.join([
-            f"{row['Ticker']} ({int(row['Rating_1_Current'])})"
-            for _, row in bottom_rating.iterrows()
-            if not pd.isna(row['Rating_1_Current'])
-        ])
+        bottom_rating_data = []
+        for _, row in bottom_rating.iterrows():
+            if not pd.isna(row['Rating_1_Current']):
+                rating_val = int(row['Rating_1_Current'])
+                color = 'green' if rating_val > 0 else 'red' if rating_val < 0 else 'black'
+                bottom_rating_data.append({
+                    'ticker': row['Ticker'],
+                    'rating': rating_val,
+                    'color': color
+                })
 
         sector_data[vn_sector] = {
-            'top_rating': top_rating_str,
-            'bottom_rating': bottom_rating_str
+            'top_rating_data': top_rating_data,
+            'bottom_rating_data': bottom_rating_data
         }
 
     # Calculate breakthrough groups (±10 points)
@@ -158,10 +168,24 @@ def create_sector_dataframe(sector_analysis):
     for sector_vn in sector_order:
         if sector_vn in sectors:
             sector_data = sectors[sector_vn]
+
+            # Create HTML strings with colors based on rating values
+            top_html_parts = []
+            for item in sector_data['top_rating_data']:
+                color_code = '#008000' if item['color'] == 'green' else '#ff0000' if item['color'] == 'red' else '#000000'
+                top_html_parts.append(f'<span style="color: {color_code};">{item["ticker"]} ({item["rating"]})</span>')
+            top_rating_html = ', '.join(top_html_parts)
+
+            bottom_html_parts = []
+            for item in sector_data['bottom_rating_data']:
+                color_code = '#008000' if item['color'] == 'green' else '#ff0000' if item['color'] == 'red' else '#000000'
+                bottom_html_parts.append(f'<span style="color: {color_code};">{item["ticker"]} ({item["rating"]})</span>')
+            bottom_rating_html = ', '.join(bottom_html_parts)
+
             rows.append({
                 'Rating': sector_vn,
-                'Top cao điểm': sector_data['top_rating'],
-                'Top thấp điểm': sector_data['bottom_rating']
+                'Top cao điểm': top_rating_html,
+                'Top thấp điểm': bottom_rating_html
             })
 
     # Add breakthrough groups - use special format for merging

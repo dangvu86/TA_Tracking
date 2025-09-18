@@ -233,20 +233,26 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 ### Sector Analysis System
 
 **New Sector Summary Implementation** (`src/utils/sector_analysis.py`):
-- **Vietnamese Sector Names**: Maps English codes to Vietnamese display names
-  - CK → Chứng khoán, BDS → Bất động sản, DTC/XD → Xây dựng & DTC
-  - VLXD → VLXD, DAU → Dầu, HK → Hàng không
-  - AGRI → Agri, XK → Xuất khẩu, NH → Ngân hàng, FAV → FAV
-- **Variable Counts per Sector**: Different top/bottom counts based on sector size
-  - Major sectors (CK, BDS, NH, FAV): top 3, bottom 3
-  - Medium sectors (DTC, VLXD, XK): top 2, bottom 1-2
-  - Small sectors (DAU, HK, AGRI): top 1, bottom 1
+- **Vietnamese Sector Names**: Maps English codes to Vietnamese display names with grouped sectors
+  - CK → Chứng khoán
+  - BDS → Bất động sản
+  - DTC, VLXD → Xây dựng & ĐTC, VLXD (grouped)
+  - DAU, HK, AGRI → Dầu, Hàng không, Agri (grouped)
+  - XK → Xuất khẩu
+  - NH → Ngân hàng
+  - FAV → FAV
+- **Variable Counts per Sector**: Different top/bottom counts based on grouped sectors
+  - Major sectors (CK, BDS, Xây dựng & ĐTC VLXD, Dầu Hàng không Agri, NH, FAV): top 3, bottom 3
+  - Medium sectors (XK): top 2, bottom 2
+- **Stock Display Format**: Shows both ticker and rating1 value (e.g., "SSI (10), VCB (8)")
 - **Breakthrough Detection**: Identifies stocks with Rating Change ≥ ±10 points
   - Format: "TICKER (prev_rating -> current_rating)"
   - Displayed in separate breakthrough groups below main sectors
 - **Single Table Display**:
-  - Main sectors: 3 columns (Rating | Top cao điểm | Top thấp điểm) with green/red colors
-  - Breakthrough groups: HTML table with colspan for merged appearance
+  - Main sectors: 3 columns (Sector | Top cao điểm | Top thấp điểm)
+  - Color scheme: Green text for positive rating1 values, red text for negative rating1 values
+  - Breakthrough groups: Green text for up moves, red text for down moves
+  - White background with !important to override Streamlit dark theme
   - No scroll, text overflow handling for long stock lists
 
 ### Functions Available
