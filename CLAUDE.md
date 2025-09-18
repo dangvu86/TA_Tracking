@@ -78,7 +78,7 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 - Exchange validation ensures proper data source selection
 
 **VNMIDCAP Google Sheets Integration**:
-- **Sheet ID**: `1Qscv4c7lCQtc8e2vCONe3Pj0_MyUq2cJ`
+- **Sheet ID**: `1-aoYbQDjBeOuzqT8LuURuOuEF4K0qsSA`
 - **Data Format**: Vietnamese numbers (dots as thousand separators, comma as decimal)
 - **Date Format**: US format (mm/dd/yyyy) 
 - **Column Structure**: Date, %Change, Open, High, Low, Close, Volume

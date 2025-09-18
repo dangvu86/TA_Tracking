@@ -104,11 +104,6 @@ def analyze_sectors_new(df_results):
     breakthrough_up = df_valid[df_valid['Rating_Change'] >= 10].copy()
     breakthrough_down = df_valid[df_valid['Rating_Change'] <= -10].copy()
 
-    # Debug: Print breakthrough data (can be removed in production)
-    # print(f"DEBUG: Total stocks with Rating_Change data: {len(df_valid[df_valid['Rating_Change'].notna()])}")
-    # print(f"DEBUG: Rating_Change range: {df_valid['Rating_Change'].min():.1f} to {df_valid['Rating_Change'].max():.1f}")
-    # print(f"DEBUG: Breakthrough up (>=10): {len(breakthrough_up)} stocks")
-    # print(f"DEBUG: Breakthrough down (<=-10): {len(breakthrough_down)} stocks")
 
     breakthrough_up_str = ', '.join([
         f"{row['Ticker']} ({int(row['Rating_1_Prev1'])} -> {int(row['Rating_1_Current'])})"
@@ -122,18 +117,6 @@ def analyze_sectors_new(df_results):
         if not pd.isna(row['Rating_Change'])
     ])
 
-    # If no breakthrough, try lower threshold for testing
-    if not breakthrough_up_str and not breakthrough_down_str:
-        print("DEBUG: No ±10 breakthrough, checking ±5...")
-        breakthrough_up_5 = df_valid[df_valid['Rating_Change'] >= 5].copy()
-        breakthrough_down_5 = df_valid[df_valid['Rating_Change'] <= -5].copy()
-        print(f"DEBUG: ±5 threshold - Up: {len(breakthrough_up_5)}, Down: {len(breakthrough_down_5)}")
-
-        # Show top changes for reference
-        top_changes = df_valid.nlargest(3, 'Rating_Change')[['Ticker', 'Rating_Change']]
-        bottom_changes = df_valid.nsmallest(3, 'Rating_Change')[['Ticker', 'Rating_Change']]
-        print(f"DEBUG: Top 3 increases: {top_changes.to_dict('records')}")
-        print(f"DEBUG: Top 3 decreases: {bottom_changes.to_dict('records')}")
 
     return {
         'sectors': sector_data,
@@ -207,52 +190,9 @@ def create_sector_dataframe(sector_analysis):
 
 def create_sector_html_table(sector_analysis):
     """
-    Create HTML table with merged cells for breakthrough groups
-
-    Args:
-        sector_analysis: Dictionary from analyze_sectors_new()
-
-    Returns:
-        HTML string for the table
+    Create HTML table with merged cells for breakthrough groups (deprecated - now using DataFrame approach)
     """
-    if not sector_analysis or 'sectors' not in sector_analysis:
-        return "<p>Không có dữ liệu sector</p>"
-
-    # Define sector order as shown in the image
-    sector_order = [
-        'Chứng khoán', 'Bất động sản', 'Xây dựng & ĐTC, VLXD', 'Dầu, Hàng không, Agri',
-        'Xuất khẩu', 'Ngân hàng', 'FAV'
-    ]
-
-    # Add rows for each sector
-    sectors = sector_analysis['sectors']
-    for sector_vn in sector_order:
-        if sector_vn in sectors:
-            sector_data = sectors[sector_vn]
-            html += f"""
-                <tr style="background-color: white ;">
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; ">{sector_vn}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #008000 !important; ">{sector_data['top_rating']}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #ff0000 !important; ">{sector_data['bottom_rating']}</td>
-                </tr>
-            """
-
-    # Add breakthrough groups with merged cells
-    html += f"""
-                <tr style="font-style: italic; ">
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; ">Nhóm đột phá</td>
-                    <td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #008000 !important; font-weight: bold; ">{sector_analysis['breakthrough_up']}</td>
-                </tr>
-                <tr style="font-style: italic; ">
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; ">Nhóm giảm điểm</td>
-                    <td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; vertical-align: middle; color: #ff0000 !important; font-weight: bold; ">{sector_analysis['breakthrough_down']}</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    """
-
-    return html
+    return "<p>This function is deprecated. Use create_sector_dataframe() instead.</p>"
 
 
 def create_sector_summary_table(sector_summary, df_results):

@@ -16,8 +16,8 @@ def fetch_vnmidcap_from_sheets() -> Optional[pd.DataFrame]:
         DataFrame with OHLCV data or None if error
     """
     try:
-        # Get data from Google Sheets
-        sheet_id = "1qFdCXl31lHg8LivJepcTNetzrCBEffFE"
+        # Get data from Google Sheets (updated link)
+        sheet_id = "1-aoYbQDjBeOuzqT8LuURuOuEF4K0qsSA"
         csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         
         response = requests.get(csv_url, timeout=10)

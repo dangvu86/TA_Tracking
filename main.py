@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
@@ -120,9 +120,6 @@ try:
                         'MA Buy': 0,
                         'MA Sell': 0
                     }
-                    # Add empty signals - just skip signal details for failed cases
-                    pass
-                    
                     results.append(result_row)
                     continue
                 
@@ -142,9 +139,6 @@ try:
                         'MA Buy': 0,
                         'MA Sell': 0
                     }
-                    # Add empty signals - skip for failed cases
-                    pass
-                    
                     results.append(result_row)
                     continue
                 
@@ -192,9 +186,8 @@ try:
                 current_price = indicators.get('Price', np.nan)
                 
                 # Calculate price change (using previous day's close)
-                df_sorted = df_with_indicators.sort_values('Date')
                 if len(df_sorted) >= 2:
-                    prev_price = df_sorted.iloc[-2]['Close'] if len(df_sorted) > 1 else current_price
+                    prev_price = df_sorted.iloc[-2]['Close']
                 else:
                     prev_price = current_price
                 
@@ -250,9 +243,6 @@ try:
                     'MA Buy': 0,
                     'MA Sell': 0
                 }
-                # Add empty signals - skip for error cases
-                pass
-                
                 results.append(result_row)
         
         # Clear progress indicators
@@ -614,7 +604,7 @@ try:
                     
                     // Try to extract numeric value for coloring
                     const stringValue = value.toString();
-                    const numMatch = stringValue.match(/[-+]?[\d.]+/);
+                    const numMatch = stringValue.match(/[-+]?[\\d.]+/);
                     if (numMatch) {
                         const numValue = parseFloat(numMatch[0]);
                         if (numValue > 0) {
@@ -694,50 +684,6 @@ try:
             strength_min = -50  # fallback
             strength_max = 50   # fallback
         
-        # Strength gradient renderer
-        strength_gradient_renderer = JsCode(f"""
-        class StrengthGradientRenderer {{
-            init(params) {{
-                this.eGui = document.createElement('div');
-                const value = params.value;
-                this.eGui.style.textAlign = 'center';
-                this.eGui.style.fontSize = '12px';
-                
-                const minVal = {strength_min};
-                const maxVal = {strength_max};
-                
-                if (value !== null && value !== undefined && value !== '') {{
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue)) {{
-                        // Display as integer (no decimals)
-                        this.eGui.innerHTML = Math.round(numValue);
-                        
-                        // Apply gradient background
-                        if (numValue > 0) {{
-                            let alpha = Math.min(numValue / maxVal, 1) * 0.5;
-                            this.eGui.style.backgroundColor = `rgba(34,197,94,${{alpha}})`;
-                        }} else if (numValue < 0) {{
-                            let alpha = Math.min(numValue / minVal, 1) * 0.5;
-                            this.eGui.style.backgroundColor = `rgba(239,68,68,${{alpha}})`;
-                        }} else {{
-                            this.eGui.style.backgroundColor = 'white';
-                        }}
-                    }} else {{
-                        this.eGui.innerHTML = value;
-                        this.eGui.style.backgroundColor = 'white';
-                    }}
-                }} else {{
-                    this.eGui.innerHTML = '';
-                    this.eGui.style.color = '#6c757d';
-                    this.eGui.style.backgroundColor = 'white';
-                }}
-            }}
-            
-            getGui() {{
-                return this.eGui;
-            }}
-        }}
-        """)
         
         # Close vs MA renderer with smaller font
         close_ma_renderer = JsCode("""
@@ -767,19 +713,18 @@ try:
         }
         """)
         
-        # Strength renderer with smaller font
-        strength_renderer = JsCode("""
-        class StrengthRenderer {
+        # Integer renderer for strength columns
+        integer_renderer = JsCode("""
+        class IntegerRenderer {
             init(params) {
                 this.eGui = document.createElement('div');
                 const value = params.value;
                 this.eGui.style.textAlign = 'center';
                 this.eGui.style.fontSize = '12px';
-                
+
                 if (value !== null && value !== undefined && value !== '') {
                     const numValue = parseFloat(value);
                     if (!isNaN(numValue)) {
-                        // Display as integer (no decimals)
                         this.eGui.innerHTML = Math.round(numValue);
                     } else {
                         this.eGui.innerHTML = value;
@@ -789,7 +734,7 @@ try:
                     this.eGui.style.color = '#6c757d';
                 }
             }
-            
+
             getGui() {
                 return this.eGui;
             }
@@ -1003,13 +948,13 @@ try:
         
         # Strength columns with gradient background, center aligned
         if 'STRENGTH_ST' in display_df.columns:
-            gb.configure_column('STRENGTH_ST', 
+            gb.configure_column('STRENGTH_ST',
                               cellStyle=strength_color_cells,
-                              cellRenderer=strength_renderer)
+                              cellRenderer=integer_renderer)
         if 'STRENGTH_LT' in display_df.columns:
-            gb.configure_column('STRENGTH_LT', 
+            gb.configure_column('STRENGTH_LT',
                               cellStyle=strength_color_cells,
-                              cellRenderer=strength_renderer)
+                              cellRenderer=integer_renderer)
         
         # Rating 1 columns with gradient (3 columns)
         rating1_cols = ['Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2']

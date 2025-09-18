@@ -25,12 +25,13 @@ def fetch_vnstock_data(ticker: str, days: int = 365) -> Optional[pd.DataFrame]:
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         
-        # Determine source based on ticker with fallback
-        sources_to_try = []
+        # VNMIDCAP should not reach here - handled exclusively by Google Sheets
         if ticker == 'VNMIDCAP':
-            sources_to_try = ['VCI', 'TCBS']  # Try VCI first, fallback to TCBS
-        else:
-            sources_to_try = ['TCBS', 'VCI']  # Try TCBS first, fallback to VCI
+            st.warning(f"VNMIDCAP should use Google Sheets exclusively, not vnstock")
+            return None
+
+        # Use TCBS as primary source with VCI fallback for other tickers
+        sources_to_try = ['TCBS', 'VCI']
         
         df = None
         last_error = None
@@ -98,22 +99,26 @@ def fetch_vnstock_data(ticker: str, days: int = 365) -> Optional[pd.DataFrame]:
 
 
 def is_vietnamese_symbol(ticker: str, exchange: str) -> bool:
-    """Check if symbol should use vnstock (Vietnamese market)"""
-    # Vietnamese indices available on vnstock
-    vn_indices = ['VNINDEX', 'VNMIDCAP', 'VNMID']
+    """Check if symbol should use vnstock (Vietnamese market, excluding VNMIDCAP)"""
+    # Vietnamese indices available on vnstock (VNMIDCAP excluded - uses Google Sheets)
+    vn_indices = ['VNINDEX']
     if ticker in vn_indices:
         return True
-    
+
+    # VNMID maps to VNMIDCAP which uses Google Sheets exclusively
+    if ticker in ['VNMID', 'VNMIDCAP']:
+        return False
+
     # Vietnamese stock exchanges
     if exchange in ['HOSE', 'HNX', 'UPCOM']:
         return True
-        
+
     return False
 
 
 def get_available_vn_indices() -> list:
-    """Get list of Vietnamese indices available on vnstock"""
-    return ['VNINDEX', 'VNMIDCAP']
+    """Get list of Vietnamese indices available on vnstock (VNMIDCAP uses Google Sheets)"""
+    return ['VNINDEX']
 
 
 def format_ticker_for_vnstock(ticker: str) -> str:
@@ -126,11 +131,8 @@ def format_ticker_for_vnstock(ticker: str) -> str:
 
 
 def get_vnstock_source(ticker: str) -> str:
-    """Get the correct vnstock source for ticker"""
-    if ticker == 'VNMIDCAP':
-        return 'VCI'
-    else:
-        return 'TCBS'
+    """Get the correct vnstock source for ticker (VNMIDCAP not supported here)"""
+    return 'TCBS'  # Primary source for vnstock data
 
 
 def test_vnstock_connection() -> bool:

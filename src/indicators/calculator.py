@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from ta import add_all_ta_features
 import ta
 
 

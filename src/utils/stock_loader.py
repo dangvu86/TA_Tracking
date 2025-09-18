@@ -1,6 +1,5 @@
 import pandas as pd
-import os
-from typing import List, Dict
+from typing import List
 
 
 def load_stock_list(csv_path: str = "TA_Tracking_List.csv") -> pd.DataFrame:
