@@ -7,7 +7,7 @@ from io import StringIO
 import re
 
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+@st.cache_data(ttl=1800)  # Cache for 30 minutes (data updates once per day)
 def fetch_vnmidcap_from_sheets() -> Optional[pd.DataFrame]:
     """
     Fetch VNMIDCAP data from Google Sheets - Simplified approach

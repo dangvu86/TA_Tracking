@@ -54,21 +54,22 @@ selected_date = st.date_input(
 # Analysis and display
 try:
     from src.utils.signal_counter import count_signals, calculate_price_change, calculate_ratings
-    
+    from src.utils.parallel_processor import analyze_stocks_parallel
+
     # Load stock list
     stock_df = load_stock_list()
-    
+
     # Initialize session state if not exists
     if 'analysis_results' not in st.session_state:
         st.session_state.analysis_results = None
         st.session_state.last_analysis_date = None
         st.session_state.first_load = True
-    
+
     # Show refresh button and data status
     col_btn, col_status = st.columns([1, 3])
     with col_btn:
         refresh_clicked = st.button("🔄 Refresh Data")
-    
+
     with col_status:
         if st.session_state.analysis_results is not None:
             if st.session_state.last_analysis_date != selected_date:
@@ -77,173 +78,44 @@ try:
                 st.success(f"✅ Data loaded for: {st.session_state.last_analysis_date}")
         else:
             st.warning("⚠️ No data loaded. Click Refresh to load data.")
-    
+
     # Only load data when explicitly requested or first load
     if refresh_clicked or (st.session_state.analysis_results is None and st.session_state.first_load):
-        
-        # Initialize results
-        results = []
-        
-        # Create progress bar
+
+        # Ensure selected_date is a date object and convert to datetime
+        if isinstance(selected_date, str):
+            selected_date_dt = datetime.strptime(selected_date, '%Y-%m-%d')
+        else:
+            selected_date_dt = datetime.combine(selected_date, datetime.min.time())
+
+        # Show progress message
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         total_stocks = len(stock_df)
-        
-        for idx, (_, row) in enumerate(stock_df.iterrows()):
-            ticker = row['Ticker']
-            sector = row['Sector']
-            exchange = row['Exchange']
-            
-            status_text.text(f"Analyzing {ticker}... ({idx+1}/{total_stocks})")
-            progress_bar.progress((idx + 1) / total_stocks)
-            
-            try:
-                # Ensure selected_date is a date object and convert to datetime
-                if isinstance(selected_date, str):
-                    selected_date_dt = datetime.strptime(selected_date, '%Y-%m-%d')
-                else:
-                    selected_date_dt = datetime.combine(selected_date, datetime.min.time())
-                
-                # Fetch data
-                df = fetch_stock_data(ticker, selected_date_dt, exchange=exchange)
-                
-                if df is None or df.empty:
-                    # Add row with no data
-                    result_row = {
-                        'Sector': sector,
-                        'Ticker': ticker,
-                        'Price': np.nan,
-                        '% Change': np.nan,
-                        'Osc Buy': 0,
-                        'Osc Sell': 0,
-                        'MA Buy': 0,
-                        'MA Sell': 0
-                    }
-                    results.append(result_row)
-                    continue
-                
-                # Calculate indicators
-                df_with_indicators = calculate_all_indicators(df)
-                indicators = get_latest_indicators(df_with_indicators, pd.Timestamp(selected_date_dt))
-                
-                if not indicators:
-                    # Add row with no data
-                    result_row = {
-                        'Sector': sector,
-                        'Ticker': ticker,
-                        'Price': np.nan,
-                        '% Change': np.nan,
-                        'Osc Buy': 0,
-                        'Osc Sell': 0,
-                        'MA Buy': 0,
-                        'MA Sell': 0
-                    }
-                    results.append(result_row)
-                    continue
-                
-                # Evaluate signals
-                signals = evaluate_all_signals(indicators)
-                
-                # Count signals
-                osc_buy, osc_sell, ma_buy, ma_sell = count_signals(signals)
-                
-                # Calculate ratings for current day
-                rating1_current, rating2_current = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
-                
-                # Calculate ratings for previous days using EXACT same logic as current day
-                df_sorted = df_with_indicators.sort_values('Date')
-                
-                # Initialize previous day ratings
-                rating1_prev1, rating2_prev1 = 'N/A', 'N/A'
-                rating1_prev2, rating2_prev2 = 'N/A', 'N/A'
-                
-                # Calculate -1 day rating using IDENTICAL method as current day
-                if len(df_sorted) >= 2:
-                    try:
-                        prev_date = df_sorted.iloc[-2]['Date']
-                        prev_indicators = get_latest_indicators(df_with_indicators, pd.Timestamp(prev_date))
-                        if prev_indicators:
-                            prev_signals = evaluate_all_signals(prev_indicators)
-                            prev_osc_buy, prev_osc_sell, prev_ma_buy, prev_ma_sell = count_signals(prev_signals)
-                            rating1_prev1, rating2_prev1 = calculate_ratings(prev_osc_buy, prev_osc_sell, prev_ma_buy, prev_ma_sell)
-                    except:
-                        rating1_prev1, rating2_prev1 = 'N/A', 'N/A'
-                
-                # Calculate -2 day rating using IDENTICAL method as current day  
-                if len(df_sorted) >= 3:
-                    try:
-                        prev2_date = df_sorted.iloc[-3]['Date']
-                        prev2_indicators = get_latest_indicators(df_with_indicators, pd.Timestamp(prev2_date))
-                        if prev2_indicators:
-                            prev2_signals = evaluate_all_signals(prev2_indicators)
-                            prev2_osc_buy, prev2_osc_sell, prev2_ma_buy, prev2_ma_sell = count_signals(prev2_signals)
-                            rating1_prev2, rating2_prev2 = calculate_ratings(prev2_osc_buy, prev2_osc_sell, prev2_ma_buy, prev2_ma_sell)
-                    except:
-                        rating1_prev2, rating2_prev2 = 'N/A', 'N/A'
-                
-                # Get price info
-                current_price = indicators.get('Price', np.nan)
-                
-                # Calculate price change (using previous day's close)
-                if len(df_sorted) >= 2:
-                    prev_price = df_sorted.iloc[-2]['Close']
-                else:
-                    prev_price = current_price
-                
-                price_change = calculate_price_change(current_price, prev_price)
-                
-                # Create result row with basic info
-                result_row = {
-                    'Sector': sector,
-                    'Ticker': ticker,
-                    'Price': current_price,
-                    '% Change': price_change,
-                    'Osc Buy': osc_buy,
-                    'Osc Sell': osc_sell,
-                    'MA Buy': ma_buy,
-                    'MA Sell': ma_sell,
-                    'MA5': indicators.get('SMA_5', np.nan),
-                    'Close_vs_MA5': indicators.get('Close_vs_MA5', np.nan),
-                    'Close_vs_MA10': indicators.get('Close_vs_MA10', np.nan),
-                    'Close_vs_MA20': indicators.get('Close_vs_MA20', np.nan),
-                    'Close_vs_MA50': indicators.get('Close_vs_MA50', np.nan),
-                    'Close_vs_MA200': indicators.get('Close_vs_MA200', np.nan),
-                    'STRENGTH_ST': indicators.get('STRENGTH_ST', np.nan),
-                    'STRENGTH_LT': indicators.get('STRENGTH_LT', np.nan),
-                    'Rating_1_Current': rating1_current,
-                    'Rating_1_Prev1': rating1_prev1,
-                    'Rating_1_Prev2': rating1_prev2,
-                    'Rating_2_Current': rating2_current,
-                    'Rating_2_Prev1': rating2_prev1,
-                    'Rating_2_Prev2': rating2_prev2,
-                    'MA50_GT_MA200': 'Yes' if indicators.get('MA50_GT_MA200', False) else 'No'
-                }
-                
-                # Add all signal details
-                result_row.update(signals)
-                
-                # Add all indicator values (exclude duplicates already in result_row)
-                for key, value in indicators.items():
-                    if key not in result_row:
-                        result_row[key] = value
-                
-                results.append(result_row)
-                
-            except Exception as e:
-                st.warning(f"Error analyzing {ticker}: {str(e)}")
-                # Add row with error
-                result_row = {
-                    'Sector': sector,
-                    'Ticker': ticker,
-                    'Price': np.nan,
-                    '% Change': np.nan,
-                    'Osc Buy': 0,
-                    'Osc Sell': 0,
-                    'MA Buy': 0,
-                    'MA Sell': 0
-                }
-                results.append(result_row)
+
+        # Progress callback to update UI in real-time
+        def update_progress(completed, total, ticker):
+            progress = completed / total
+            progress_bar.progress(progress)
+            status_text.text(f"🚀 Analyzing {ticker}... ({completed}/{total})")
+
+        # Process all stocks in parallel with real-time progress
+        results, errors = analyze_stocks_parallel(
+            stock_df,
+            selected_date_dt,
+            max_workers=15,
+            progress_callback=update_progress
+        )
+
+        # Complete progress
+        progress_bar.progress(1.0)
+        status_text.text(f"✅ Completed analyzing {total_stocks} stocks!")
+
+        # Show errors if any
+        if errors:
+            for error in errors:
+                st.warning(f"⚠️ {error}")
         
         # Clear progress indicators
         progress_bar.empty()
