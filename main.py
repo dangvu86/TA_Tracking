@@ -276,10 +276,8 @@ try:
                 sector_df = create_sector_dataframe(sector_analysis)
 
                 if not sector_df.empty:
-                    # Keep breakthrough rows simple - just empty the 3rd column
+                    # Use sector_df directly without modifying
                     display_df = sector_df.copy()
-                    breakthrough_mask = display_df['Rating'].str.contains('Nhóm', na=False)
-                    display_df.loc[breakthrough_mask, 'Top thấp điểm'] = ''
 
                     # Create complete HTML document with embedded styles
                     html_content = """
@@ -297,6 +295,7 @@ try:
                                 width: 100%;
                                 border-collapse: collapse;
                                 background-color: white;
+                                table-layout: fixed;
                             }
                             th {
                                 border: 1px solid #ddd;
@@ -307,6 +306,15 @@ try:
                                 color: #000000;
                                 font-weight: bold;
                             }
+                            th:nth-child(1) {
+                                width: 15%;
+                            }
+                            th:nth-child(2) {
+                                width: 42.5%;
+                            }
+                            th:nth-child(3) {
+                                width: 42.5%;
+                            }
                             td {
                                 border: 0.8px solid #ddd;
                                 padding: 5px;
@@ -314,6 +322,8 @@ try:
                                 text-align: center;
                                 background-color: white;
                                 color: #000000;
+                                word-wrap: break-word;
+                                overflow-wrap: break-word;
                             }
                             .text-green {
                                 color: #198754;
@@ -331,8 +341,9 @@ try:
                                 color: #333333;
                                 font-style: italic;
                                 text-align: left;
-                                white-space: nowrap;
-                                overflow: visible;
+                                white-space: normal;
+                                word-wrap: break-word;
+                                overflow-wrap: break-word;
                             }
                         </style>
                     </head>
@@ -349,22 +360,26 @@ try:
                     
                     # Add rows
                     for idx, row in display_df.iterrows():
-                        is_breakthrough = 'Nhóm' in str(row['Rating'])
+                        # Check if this is a breakthrough row by looking at the special marker
+                        is_breakthrough = row['Top thấp điểm'] == '🔀 MERGE'
                         html_content += "<tr>"
-                        
+
                         # Rating column
                         if is_breakthrough:
                             html_content += f'<td class="text-italic">{row["Rating"]}</td>'
                         else:
                             html_content += f'<td>{row["Rating"]}</td>'
-                        
+
                         # Top cao điểm and Top thấp điểm columns
                         if is_breakthrough:
-                            html_content += f'<td colspan="2" class="text-breakthrough">{row["Top cao điểm"]}</td>'
+                            # Breakthrough rows: merge 2 columns
+                            color_class = 'text-green' if 'đột phá' in str(row['Rating']) else 'text-red'
+                            html_content += f'<td colspan="2" class="text-breakthrough {color_class}">{row["Top cao điểm"]}</td>'
                         else:
-                            html_content += f'<td class="text-green">{row["Top cao điểm"]}</td>'
-                            html_content += f'<td class="text-red">{row["Top thấp điểm"]}</td>'
-                        
+                            # Normal sector rows: separate columns (raw HTML already in data)
+                            html_content += f'<td>{row["Top cao điểm"]}</td>'
+                            html_content += f'<td>{row["Top thấp điểm"]}</td>'
+
                         html_content += "</tr>"
                     
                     html_content += """
@@ -375,7 +390,7 @@ try:
                     """
                     
                     # Use streamlit components to render isolated HTML
-                    components.html(html_content, height=350, scrolling=False)
+                    components.html(html_content, height=380, scrolling=True)
 
         except ImportError:
             st.error("Please install streamlit.components to display the table properly in dark theme")
