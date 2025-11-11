@@ -321,10 +321,17 @@ try:
                        'Close_vs_MA200', 'STRENGTH_ST', 'STRENGTH_LT']
         numeric_cols = [col for col in numeric_cols if col in display_df.columns]
         
-        # Format price and % change
-        def format_price(x):
+        # Format price - with thousand separators for both stocks and indices
+        def format_price(x, sector):
             try:
-                return f"{float(x):.1f}" if pd.notna(x) and isinstance(x, (int, float)) else ""
+                if pd.notna(x) and isinstance(x, (int, float)):
+                    if sector == 'Index':
+                        # Indices: show 1 decimal place with thousand separator
+                        return f"{float(x):,.1f}"
+                    else:
+                        # Stocks: show thousand separator, no decimals
+                        return f"{int(float(x)):,}"
+                return ""
             except:
                 return ""
         
@@ -334,8 +341,8 @@ try:
             except:
                 return ""
         
-        if 'Price' in display_df.columns:
-            display_df['Price'] = display_df['Price'].apply(format_price)
+        if 'Price' in display_df.columns and 'Sector' in display_df.columns:
+            display_df['Price'] = display_df.apply(lambda row: format_price(row['Price'], row['Sector']), axis=1)
         if '% Change' in display_df.columns:
             display_df['% Change'] = display_df['% Change'].apply(format_change)
         
@@ -651,23 +658,24 @@ try:
         }
         """)
         
-        # Numeric renderer with smaller font
-        numeric_renderer = JsCode("""
-        class NumericRenderer {
+        # Price renderer with smaller font (displays pre-formatted values from Python)
+        price_renderer = JsCode("""
+        class PriceRenderer {
             init(params) {
                 this.eGui = document.createElement('div');
                 const value = params.value;
                 this.eGui.style.textAlign = 'right';
                 this.eGui.style.fontSize = '12px';
-                
+
                 if (value !== null && value !== undefined && value !== '') {
+                    // Display the value as is (already formatted from Python)
                     this.eGui.innerHTML = value;
                 } else {
                     this.eGui.innerHTML = '';
                     this.eGui.style.color = '#6c757d';
                 }
             }
-            
+
             getGui() {
                 return this.eGui;
             }
@@ -708,10 +716,10 @@ try:
                                   cellRenderer=close_ma_renderer,
                                   type=["numericColumn", "centerAligned"])
         
-        # Price column with right alignment and number formatting
+        # Price column with right alignment and custom renderer
         if 'Price' in display_df.columns:
-            gb.configure_column('Price', 
-                              cellRenderer=numeric_renderer,
+            gb.configure_column('Price',
+                              cellRenderer=price_renderer,
                               type=["numericColumn", "rightAligned"])
         
         # Create strength gradient style function
