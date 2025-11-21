@@ -5,6 +5,7 @@ from typing import Optional
 import streamlit as st
 from .tcbs_api_fetcher import fetch_tcbs_api_data, is_vietnamese_symbol, format_ticker_for_tcbs
 from .google_sheets_simple import fetch_vnmidcap_from_sheets
+from .vnstock_fetcher import fetch_vnstock_data
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
@@ -34,6 +35,18 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
                 # Only use Google Sheets for VNMIDCAP - no fallback
                 st.error(f"Failed to fetch VNMIDCAP data from Google Sheets for {ticker}")
                 return None
+        
+        # Special handling for VNINDEX - use vnstock because TCBS API returns no data
+        elif ticker == 'VNINDEX':
+            df = fetch_vnstock_data(ticker, period_days)
+            
+            if df is not None and not df.empty:
+                # Filter data up to the specified end_date
+                df = df[df['Date'].dt.date <= end_date.date()]
+                return df
+            else:
+                # Fallback to Yahoo Finance if vnstock fails
+                pass
         
         # Check if should use TCBS API for Vietnamese market (excluding VNMIDCAP)
         elif is_vietnamese_symbol(ticker, exchange):

@@ -30,7 +30,8 @@ def fetch_vnstock_data(ticker: str, days: int = 365) -> Optional[pd.DataFrame]:
             st.warning(f"VNMIDCAP should use Google Sheets exclusively, not vnstock")
             return None
 
-        # Use TCBS as primary source with VCI fallback for other tickers
+        # Use TCBS as primary source with VCI fallback
+        # Note: VCI has been observed to return incorrect dates for indices
         sources_to_try = ['TCBS', 'VCI']
         
         df = None
@@ -79,6 +80,12 @@ def fetch_vnstock_data(ticker: str, days: int = 365) -> Optional[pd.DataFrame]:
             # Ensure Date column is datetime
             if 'Date' in df.columns:
                 df['Date'] = pd.to_datetime(df['Date'])
+                
+                # Fix incorrect year bug from API (returns 2025 instead of 2024)
+                # If dates are in the future, subtract 1 year
+                now = datetime.now()
+                if not df.empty and df['Date'].max() > pd.Timestamp(now):
+                    df['Date'] = df['Date'] - pd.DateOffset(years=1)
             
             # Add missing columns for compatibility
             if 'Volume' not in df.columns:
