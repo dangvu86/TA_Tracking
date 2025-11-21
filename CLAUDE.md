@@ -25,15 +25,20 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 ### Core Data Flow Architecture
 
 1. **Data Source Router** (`src/data_fetcher.py`): 
-   - Routes Vietnamese symbols (stocks + VNINDEX) → vnstock API
+   - Routes **VNINDEX exclusively** → vnstock API (TCBS API no longer supports VNINDEX)
+   - Routes Vietnamese stocks (HOSE, HNX, UPCOM) → TCBS API with Yahoo Finance fallback
    - Routes **VNMIDCAP exclusively** → Google Sheets API (no fallback)
    - Routes US symbols/indices → Yahoo Finance API
-   - Implements intelligent fallback between sources (except VNMIDCAP)
+   - Implements intelligent fallback between sources (except VNMIDCAP and VNINDEX)
 
-2. **Triple API Integration**:
-   - **vnstock** (`src/vnstock_fetcher.py`): Vietnamese market data
-     - TCBS source for stocks and VNINDEX
-     - VCI source with fallback to TCBS
+2. **Quad API Integration**:
+   - **TCBS API** (`src/tcbs_api_fetcher.py`): Primary source for Vietnamese stocks
+     - Direct TCBS API calls for HOSE, HNX, UPCOM stocks
+     - Fast and reliable for stock data
+     - Does NOT support VNINDEX (returns empty data)
+   - **vnstock** (`src/vnstock_fetcher.py`): VNINDEX exclusive data source
+     - TCBS source with VCI fallback
+     - Only used for VNINDEX (not for stocks)
    - **Google Sheets** (`src/google_sheets_simple.py`): VNMIDCAP exclusive data source
      - Direct CSV export from Google Sheets
      - Vietnamese number format handling (2.492,45 → 2492.45)
@@ -72,9 +77,9 @@ This is a **Streamlit 2-page web application** for technical analysis of Vietnam
 **Key Mapping**: `VNMID` → `VNMIDCAP` (handled in `format_ticker_for_vnstock()`)
 
 **Exchange Handling**:
-- HOSE/HNX/UPCOM stocks use vnstock with `.VN` suffix fallback
-- **VNINDEX** uses vnstock exclusively
-- **VNMIDCAP** uses Google Sheets exclusively (no vnstock fallback)
+- HOSE/HNX/UPCOM stocks use TCBS API with Yahoo Finance (`.VN` suffix) fallback
+- **VNINDEX** uses vnstock exclusively (TCBS API no longer supports it)
+- **VNMIDCAP** uses Google Sheets exclusively (no fallback)
 - Exchange validation ensures proper data source selection
 
 **VNMIDCAP Google Sheets Integration**:
@@ -237,10 +242,11 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
 
 ### Data Source Priorities
 1. **Google Sheets** for VNMIDCAP exclusively (no fallback)
-2. **vnstock** for Vietnamese symbols (VNINDEX, all VN stocks)
-3. **Yahoo Finance** for US indices (^GSPC, ^VIX) and VN stock fallback
-4. Intelligent fallback handling with user warnings (except VNMIDCAP)
-5. `get_last_trading_date()` for smart date defaults
+2. **vnstock** for VNINDEX exclusively (TCBS API no longer supports it)
+3. **TCBS API** for Vietnamese stocks (HOSE, HNX, UPCOM)
+4. **Yahoo Finance** for US indices (^GSPC, ^VIX) and VN stock fallback
+5. Intelligent fallback handling with user warnings (except VNMIDCAP and VNINDEX)
+6. `get_last_trading_date()` for smart date defaults
 
 ### Caching Strategy
 - **Data Fetching Cache**: 5-minute TTL on vnstock and Yahoo Finance functions
@@ -256,7 +262,13 @@ rating1, rating2 = calculate_ratings(osc_buy, osc_sell, ma_buy, ma_sell)
   - US date format parsing (mm/dd/yyyy → datetime)
   - Column mapping and validation
   - Automatic data quality checks and sorting
-- **vnstock Integration**: VNINDEX and stocks use TCBS source with VCI fallback
+- **TCBS API Integration**: Primary source for Vietnamese stocks (HOSE, HNX, UPCOM)
+  - Direct API calls to apipubaws.tcbs.com.vn
+  - Fast and reliable stock data
+  - Does NOT support VNINDEX (returns empty data)
+- **vnstock Integration**: VNINDEX only (TCBS API no longer supports it)
+  - Uses TCBS source with VCI fallback
+  - Not used for stocks (stocks use TCBS API directly)
 - **Retry mechanism**: 2 attempts per source with 1-second delay for connection reliability
 - **Error prevention**: All CSV entries must have proper Sector values
 
