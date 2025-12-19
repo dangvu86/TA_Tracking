@@ -43,8 +43,18 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
                 st.error(f"Failed to fetch VNMIDCAP data from Google Sheets for {ticker}")
                 return None
         
-        # Special handling for VNINDEX - use vnstock because Google Drive doesn't have index data
+        # Special handling for VNINDEX - use Google Drive first, vnstock as fallback
         elif ticker == 'VNINDEX':
+            # Try Google Drive first
+            from .google_drive_fetcher import fetch_gdrive_index_data, is_index_in_gdrive
+            if is_index_in_gdrive(ticker):
+                df = fetch_gdrive_index_data(ticker, period_days)
+                if df is not None and not df.empty:
+                    # Filter data up to the specified end_date
+                    df = df[df['Date'].dt.date <= end_date.date()]
+                    return df
+            
+            # Fallback to vnstock
             df = fetch_vnstock_data(ticker, period_days)
             
             if df is not None and not df.empty:
@@ -53,7 +63,7 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
                 return df
             else:
                 # Fallback message
-                st.warning(f"Could not fetch VNINDEX data from vnstock")
+                st.warning(f"Could not fetch VNINDEX data from both Google Drive and vnstock")
                 return None
         
         # Check if ticker is available in Google Drive data (for Vietnamese stocks)

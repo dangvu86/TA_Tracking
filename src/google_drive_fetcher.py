@@ -22,6 +22,11 @@ GDRIVE_FILES = [
     "1JE7XKfdM4QnI6nYNFriFShU3mSWG5_Rj",  # 8 HNX/UPCOM stocks
 ]
 
+# Google Drive file IDs for indices (different format: time,open,high,low,close,volume)
+GDRIVE_INDEX_FILES = {
+    "VNINDEX": "10TXB0G2HuCbMEC1nbB-Kj2eA33mGjQFn",
+}
+
 
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def _load_gdrive_file(file_id: str) -> Optional[pd.DataFrame]:
@@ -143,6 +148,75 @@ def fetch_gdrive_stock_data(ticker: str, days: int = 365) -> Optional[pd.DataFra
     except Exception as e:
         st.warning(f"Error fetching Google Drive data for {ticker}: {str(e)}")
         return None
+
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def fetch_gdrive_index_data(ticker: str, days: int = 365) -> Optional[pd.DataFrame]:
+    """
+    Fetch index data (VNINDEX, etc.) from Google Drive files.
+    These files have different format: time,open,high,low,close,volume
+    
+    Args:
+        ticker: Index ticker (VNINDEX, etc.)
+        days: Number of days of history to return
+        
+    Returns:
+        DataFrame with OHLCV data or None if not found
+    """
+    try:
+        # Check if ticker is in index files
+        if ticker.upper() not in GDRIVE_INDEX_FILES:
+            return None
+        
+        file_id = GDRIVE_INDEX_FILES[ticker.upper()]
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        
+        df = pd.read_csv(StringIO(response.text))
+        
+        # Convert date column
+        df['time'] = pd.to_datetime(df['time'])
+        
+        # Sort by date
+        df = df.sort_values('time')
+        
+        # Filter to requested number of days
+        end_date = df['time'].max()
+        start_date = end_date - timedelta(days=days)
+        df = df[df['time'] >= start_date]
+        
+        # Rename columns to match expected format
+        df = df.rename(columns={
+            'time': 'Date',
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
+        
+        # Select and order columns
+        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']].copy()
+        
+        # Add missing columns for compatibility
+        df['Dividends'] = 0
+        df['Stock Splits'] = 0
+        
+        # Reset index
+        df = df.reset_index(drop=True)
+        
+        return df
+        
+    except Exception as e:
+        st.warning(f"Error fetching Google Drive index data for {ticker}: {str(e)}")
+        return None
+
+
+def is_index_in_gdrive(ticker: str) -> bool:
+    """Check if an index ticker is available in Google Drive."""
+    return ticker.upper() in GDRIVE_INDEX_FILES
 
 
 def get_available_gdrive_tickers() -> list:
