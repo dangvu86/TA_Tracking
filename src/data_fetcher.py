@@ -3,15 +3,22 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Optional
 import streamlit as st
-from .tcbs_api_fetcher import fetch_tcbs_api_data, is_vietnamese_symbol, format_ticker_for_tcbs
 from .google_sheets_simple import fetch_vnmidcap_from_sheets
 from .vnstock_fetcher import fetch_vnstock_data
+from .google_drive_fetcher import fetch_gdrive_stock_data, is_ticker_in_gdrive
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, exchange: str = '') -> Optional[pd.DataFrame]:
     """
-    Fetch stock data from appropriate source (Yahoo Finance or vnstock)
+    Fetch stock data from appropriate source.
+    
+    Data Source Priority:
+    1. VNMIDCAP -> Google Sheets (exclusive)
+    2. VNINDEX -> vnstock (exclusive)
+    3. Vietnamese stocks (HOSE/HNX/UPCOM) -> Google Drive CSV files (primary)
+    4. US indices -> Yahoo Finance
+    5. Fallback -> Yahoo Finance
     
     Args:
         ticker: Stock ticker (original format)
@@ -36,7 +43,7 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
                 st.error(f"Failed to fetch VNMIDCAP data from Google Sheets for {ticker}")
                 return None
         
-        # Special handling for VNINDEX - use vnstock because TCBS API returns no data
+        # Special handling for VNINDEX - use vnstock because Google Drive doesn't have index data
         elif ticker == 'VNINDEX':
             df = fetch_vnstock_data(ticker, period_days)
             
@@ -45,22 +52,22 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
                 df = df[df['Date'].dt.date <= end_date.date()]
                 return df
             else:
-                # Fallback to Yahoo Finance if vnstock fails
-                pass
+                # Fallback message
+                st.warning(f"Could not fetch VNINDEX data from vnstock")
+                return None
         
-        # Check if should use TCBS API for Vietnamese market (excluding VNMIDCAP)
-        elif is_vietnamese_symbol(ticker, exchange):
-            # Use TCBS API for Vietnamese stocks and indices
-            tcbs_ticker = format_ticker_for_tcbs(ticker)
-            df = fetch_tcbs_api_data(tcbs_ticker, period_days)
-
+        # Check if ticker is available in Google Drive data (for Vietnamese stocks)
+        elif exchange in ['HOSE', 'HNX', 'UPCOM'] or is_ticker_in_gdrive(ticker):
+            # Use Google Drive CSV files for Vietnamese stocks
+            df = fetch_gdrive_stock_data(ticker, period_days)
+            
             if df is not None and not df.empty:
                 # Filter data up to the specified end_date
                 df = df[df['Date'].dt.date <= end_date.date()]
                 return df
             else:
-                # Fallback to Yahoo Finance if TCBS API fails
-                pass
+                # Fallback to Yahoo Finance if Google Drive data not available
+                st.info(f"Ticker {ticker} not found in Google Drive, trying Yahoo Finance...")
         
         # Use Yahoo Finance (for US indices or fallback)
         start_date = end_date - timedelta(days=period_days)
@@ -95,7 +102,24 @@ def fetch_stock_data(ticker: str, end_date: datetime, period_days: int = 365, ex
 
 
 def get_last_trading_date() -> datetime:
-    """Get the last trading date (exclude weekends)"""
+    """
+    Get the last trading date based on available data.
+    
+    Priority:
+    1. Latest date from Google Drive data files (since they're updated EOD)
+    2. Fallback to current date (adjusted for weekends)
+    
+    Returns:
+        datetime of the last trading date with data available
+    """
+    from .google_drive_fetcher import get_latest_data_date
+    
+    # Try to get latest date from Google Drive data
+    gdrive_latest = get_latest_data_date()
+    if gdrive_latest is not None:
+        return gdrive_latest
+    
+    # Fallback to current date logic (for non-VN stocks or if GDrive fails)
     today = datetime.now()
     
     # If today is weekend, go back to Friday
