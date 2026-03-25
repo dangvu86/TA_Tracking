@@ -272,10 +272,13 @@ try:
 
         
         # Define only the columns to display as requested
-        requested_cols = ['Sector', 'Ticker', 'Price', '% Change', 'Close_vs_MA5', 'Close_vs_MA10', 
-                         'Close_vs_MA20', 'Close_vs_MA50', 'Close_vs_MA200', 'STRENGTH_ST', 
-                         'STRENGTH_LT', 'Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2',
-                         'Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2', 'MA50_GT_MA200']
+        requested_cols = ['Ticker', 'STRENGTH_ST', 'STRENGTH_LT',
+                         'Rating_1_Current', 'Rating_1_Prev1', 'Rating_1_Prev2',
+                         'Rating_2_Current', 'Rating_2_Prev1', 'Rating_2_Prev2',
+                         'MA50_GT_MA200',
+                         'Price', '% Change',
+                         'Close_vs_MA5', 'Close_vs_MA10', 'Close_vs_MA20', 'Close_vs_MA50', 'Close_vs_MA200',
+                         'Sector']
         
         # Filter to only available columns
         available_columns = [col for col in requested_cols if col in df_results.columns]
@@ -291,9 +294,9 @@ try:
                 numeric_values = pd.to_numeric(display_df[col], errors='coerce')
                 total_sum = numeric_values.sum() if not numeric_values.isna().all() else 0
                 totals_row[col] = total_sum if total_sum != 0 else ''  # Empty if zero
-            elif col == 'Sector':
-                totals_row[col] = 'TOTAL'
             elif col == 'Ticker':
+                totals_row[col] = 'TOTAL'
+            elif col == 'Sector':
                 totals_row[col] = f'({len(display_df)} stocks)'
             else:
                 totals_row[col] = ' '  # Empty for non-summed columns
@@ -302,18 +305,19 @@ try:
         totals_df = pd.DataFrame([totals_row])
         display_df = pd.concat([display_df, totals_df], ignore_index=True)
         
-        # Add blank column between Close_vs_MA200 and STRENGTH_ST
-        blank_col_index = list(display_df.columns).index('Close_vs_MA200') + 1
-        display_df.insert(blank_col_index, '　', '')  # Using full-width space as column name
-        
         # Add blank column between STRENGTH_LT and Rating_1_Current
         if 'STRENGTH_LT' in display_df.columns and 'Rating_1_Current' in display_df.columns:
-            blank_col_index2 = list(display_df.columns).index('STRENGTH_LT') + 1
-            display_df.insert(blank_col_index2, '　　', '')  # Using double full-width space
-        
+            blank_col_index = list(display_df.columns).index('STRENGTH_LT') + 1
+            display_df.insert(blank_col_index, '　', '')  # Using full-width space as column name
+
         # Add blank column between Rating_1_Prev2 and Rating_2_Current
         if 'Rating_1_Prev2' in display_df.columns and 'Rating_2_Current' in display_df.columns:
-            blank_col_index3 = list(display_df.columns).index('Rating_1_Prev2') + 1
+            blank_col_index2 = list(display_df.columns).index('Rating_1_Prev2') + 1
+            display_df.insert(blank_col_index2, '　　', '')  # Using double full-width space
+
+        # Add blank column between MA50_GT_MA200 and Price
+        if 'MA50_GT_MA200' in display_df.columns and 'Price' in display_df.columns:
+            blank_col_index3 = list(display_df.columns).index('MA50_GT_MA200') + 1
             display_df.insert(blank_col_index3, '　　　', '')  # Using triple full-width space
         
         # Format numeric columns for the requested display columns
